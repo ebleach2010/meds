@@ -202,7 +202,7 @@
     const p = n => String(n).padStart(2, '0');
     return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
   }
-  const fmt = (n, d = 1) => (Math.round(n * 10 ** d) / 10 ** d).toString();
+  const fmt = (n, d = 0) => (Math.round(n * 10 ** d) / 10 ** d).toString();
   const fmtDate = d => d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   const fmtTime = d => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 
@@ -237,21 +237,22 @@
   function render() {
     const m = model();
     document.getElementById('s-left').textContent = fmt(m.remaining);
-    const diff = m.remaining - m.expected; // + means more pills left than pace
+    const diff = Math.round(m.remaining - m.expected); // + means more pills left than pace
     const diffEl = document.getElementById('s-diff');
     diffEl.textContent = (diff > 0 ? '+' : '') + fmt(diff);
-    diffEl.style.color = Math.abs(diff) < 0.05 ? '' : diff > 0 ? 'var(--good)' : 'var(--bad)';
+    diffEl.style.color = diff === 0 ? '' : diff > 0 ? 'var(--good)' : 'var(--bad)';
     document.getElementById('s-day0').textContent = fmt(Math.max(0, (m.runOut - m.now) / DAY));
 
     const sum = document.getElementById('summary');
     const abs = fmt(Math.abs(diff));
     const day0 = fmtDate(m.runOut);
-    if (Math.abs(diff) < 0.05) {
+    const pl = Math.abs(diff) === 1 ? 'pill' : 'pills';
+    if (diff === 0) {
       sum.innerHTML = `You're right on the average pace. Day 0 is <b>${day0}</b>.`;
     } else if (diff < 0) {
-      sum.innerHTML = `You've taken <b class="bad">${abs} more</b> pills than the average pace. At ${fmt(m.rate, 2)}/day, what's left runs out <b>${fmtDate(m.yourRunOut)}</b> vs. day 0 on <b>${day0}</b>.`;
+      sum.innerHTML = `You've taken <b class="bad">${abs} more</b> ${pl} than the average pace. At ${fmt(m.rate, 2)}/day, what's left runs out <b>${fmtDate(m.yourRunOut)}</b> vs. day 0 on <b>${day0}</b>.`;
     } else {
-      sum.innerHTML = `You've taken <b class="good">${abs} fewer</b> pills than the average pace. At ${fmt(m.rate, 2)}/day, what's left lasts until <b>${fmtDate(m.yourRunOut)}</b> vs. day 0 on <b>${day0}</b>.`;
+      sum.innerHTML = `You've taken <b class="good">${abs} fewer</b> ${pl} than the average pace. At ${fmt(m.rate, 2)}/day, what's left lasts until <b>${fmtDate(m.yourRunOut)}</b> vs. day 0 on <b>${day0}</b>.`;
     }
 
     const notes = [`By the actual step schedule you'd have taken about ${fmt(m.prescTaken)} by now (you've taken ${fmt(m.taken)}).`];
@@ -331,7 +332,7 @@
     }
     out += `<circle cx="${nx}" cy="${ey}" r="4" fill="${c('--red')}" />`;
     out += `<circle cx="${nx}" cy="${ay}" r="4.5" fill="${c('--yellow')}" stroke="${c('--card')}" stroke-width="1.5" />`;
-    const diff = m.remaining - m.expected;
+    const diff = Math.round(m.remaining - m.expected);
     const lbl = (diff > 0 ? '+' : '') + fmt(diff);
     const lx = nx + 8 > W - 50 ? nx - 8 : nx + 8;
     out += `<text x="${lx}" y="${(ey + ay) / 2 + 4}" text-anchor="${lx < nx ? 'end' : 'start'}" font-size="12" font-weight="700" fill="${c('--text')}">${lbl}</text>`;
