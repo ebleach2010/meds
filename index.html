@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Pills">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>Pill Tracker</title>
+<style>
+  :root {
+    --bg: #f6f5f2;
+    --card: #ffffff;
+    --text: #1c1c1e;
+    --muted: #6e6e73;
+    --line: #e3e1dc;
+    --grid: #ecebe7;
+    --red: #d93a3f;
+    --yellow: #e0a100;
+    --accent: #1c1c1e;
+    --accent-text: #ffffff;
+    --good: #2f8a4c;
+    --bad: #c2410c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111113;
+      --card: #1c1c1f;
+      --text: #f2f2f4;
+      --muted: #9a9aa1;
+      --line: #2e2e33;
+      --grid: #26262b;
+      --red: #ff5a5f;
+      --yellow: #ffcc33;
+      --accent: #f2f2f4;
+      --accent-text: #111113;
+      --good: #5fcf86;
+      --bad: #ff8a4c;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 22px; margin: 4px 0 12px; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+  .stat { text-align: center; }
+  .stat .v { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 12px; color: var(--muted); }
+  .summary { font-size: 15px; margin: 6px 0 0; }
+  .summary b.good { color: var(--good); }
+  .summary b.bad { color: var(--bad); }
+  .note { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+  .chart-wrap { width: 100%; }
+  svg { display: block; width: 100%; height: auto; }
+  .legend { display: flex; gap: 14px; font-size: 13px; color: var(--muted); margin-top: 6px; flex-wrap: wrap; }
+  .sw { display: inline-block; width: 16px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+  form.log { display: grid; grid-template-columns: 1fr 90px; gap: 8px; }
+  form.log > div, .grid2 > div, .phase > div { min-width: 0; }
+  label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
+  input, button { font: inherit; }
+  input[type=number], input[type=datetime-local] {
+    width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--text); min-height: 44px; font-size: 16px;
+    -webkit-appearance: none; appearance: none;
+  }
+  .row { display: flex; gap: 8px; margin-top: 8px; }
+  button {
+    min-height: 44px; border-radius: 10px; border: 1px solid var(--line); padding: 0 14px;
+    background: var(--card); color: var(--text); cursor: pointer;
+  }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); flex: 1; font-weight: 600; }
+  .day { margin-top: 10px; }
+  .day-h { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  .dose { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; font-variant-numeric: tabular-nums; }
+  .dose button { min-height: 36px; padding: 0 10px; color: var(--muted); }
+  details summary { cursor: pointer; font-weight: 600; list-style: none; }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::after { content: " ▸"; color: var(--muted); }
+  details[open] summary::after { content: " ▾"; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .phase { display: grid; grid-template-columns: 1fr 1fr 44px; gap: 8px; align-items: end; margin-top: 8px; }
+  .phase button { padding: 0; }
+  .empty { color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pill Tracker</h1>
+
+  <section class="card">
+    <div class="stats">
+      <div class="stat"><div class="v" id="s-left">–</div><div class="l">pills left</div></div>
+      <div class="stat"><div class="v" id="s-diff">–</div><div class="l">vs. pace</div></div>
+      <div class="stat"><div class="v" id="s-day0">–</div><div class="l">days to day 0</div></div>
+    </div>
+    <div class="chart-wrap"><svg id="chart" role="img" aria-label="Pills remaining over time"></svg></div>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--red)"></span>Average pace to day 0</span>
+      <span><span class="sw" style="background:var(--yellow)"></span>Pills actually left</span>
+    </div>
+    <p class="summary" id="summary"></p>
+    <p class="note" id="sched-note"></p>
+  </section>
+
+  <section class="card">
+    <h2>Log a dose</h2>
+    <form class="log" id="log-form">
+      <div>
+        <label for="f-time">Date &amp; time</label>
+        <input type="datetime-local" id="f-time" required>
+      </div>
+      <div>
+        <label for="f-pills">Pills</label>
+        <input type="number" id="f-pills" min="0.25" step="0.25" value="1" inputmode="decimal" required>
+      </div>
+    </form>
+    <div class="row">
+      <button type="button" id="b-now">Now</button>
+      <button type="submit" form="log-form" class="primary" id="b-log">Log dose</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>History</h2>
+    <div id="history"></div>
+  </section>
+
+  <section class="card">
+    <details id="settings">
+      <summary>Prescription &amp; settings</summary>
+      <div class="grid2">
+        <div><label for="s-count">Pills dispensed</label><input type="number" id="s-count" min="1" step="1"></div>
+        <div><label for="s-mg">mg per pill</label><input type="number" id="s-mg" min="0.1" step="any"></div>
+      </div>
+      <div style="margin-top:8px"><label for="s-start">Dispensed / start</label><input type="datetime-local" id="s-start"></div>
+      <div id="phases"></div>
+      <div class="row">
+        <button type="button" id="b-add-phase">+ Add step</button>
+        <button type="button" class="primary" id="b-save">Save</button>
+      </div>
+      <p class="note">The red line uses the average of the whole schedule (total pills ÷ total days), so there's no sudden drop when the dose changes.</p>
+      <div class="row">
+        <button type="button" id="b-export">Export backup</button>
+        <button type="button" id="b-import">Import backup</button>
+        <input type="file" id="f-import" accept="application/json,.json" hidden>
+      </div>
+      <div class="row">
+        <button type="button" id="b-reset" style="color:var(--bad)">Reset everything</button>
+      </div>
+    </details>
+  </section>
+</main>
+
+<script>
+(function () {
+  const KEY = 'pilltracker.v1';
+  const DAY = 86400000;
+  const DEFAULTS = {
+    settings: {
+      startCount: 70,
+      mgPerPill: 15,
+      start: '2026-10-19T00:00',
+      phases: [{ mg: 60, days: 7 }, { mg: 45, days: 14 }]
+    },
+    // Pills already taken as of 10/20 — edit or delete if the time is off.
+    doses: [{ id: 'seed', t: '2026-10-20T08:00', pills: 5 }]
+  };
+
+  let state = load();
+
+  function load() {
+    try {
+      const s = JSON.parse(localStorage.getItem(KEY));
+      if (s && s.settings && Array.isArray(s.doses)) return s;
+    } catch (e) {}
+    return JSON.parse(JSON.stringify(DEFAULTS));
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  // datetime-local strings are parsed by hand so they're always local time.
+  function parseLocal(s) {
+    const [d, t = '00:00'] = s.split('T');
+    const [y, m, da] = d.split('-').map(Number);
+    const [h, mi] = t.split(':').map(Number);
+    return new Date(y, m - 1, da, h || 0, mi || 0);
+  }
+  function toLocalInput(date) {
+    const p = n => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
+  }
+  const fmt = (n, d = 1) => (Math.round(n * 10 ** d) / 10 ** d).toString();
+  const fmtDate = d => d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const fmtTime = d => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+  function model() {
+    const s = state.settings;
+    const schedPills = s.phases.reduce((a, p) => a + p.mg * p.days / s.mgPerPill, 0);
+    const schedDays = s.phases.reduce((a, p) => a + p.days, 0);
+    const rate = schedPills / schedDays; // average pills per day
+    const start = parseLocal(s.start);
+    const runOut = new Date(start.getTime() + s.startCount / rate * DAY);
+    const now = new Date();
+    const doses = state.doses
+      .map(d => ({ ...d, date: parseLocal(d.t) }))
+      .sort((a, b) => a.date - b.date);
+    const taken = doses.reduce((a, d) => a + d.pills, 0);
+    const remaining = s.startCount - taken;
+    const elapsed = Math.max(0, (now - start) / DAY);
+    const expected = Math.max(0, s.startCount - rate * elapsed);
+
+    // What the stepped prescription says you should have taken by now.
+    let prescTaken = 0, left = elapsed;
+    for (const p of s.phases) {
+      const x = Math.min(left, p.days);
+      prescTaken += x * p.mg / s.mgPerPill;
+      left -= x;
+      if (left <= 0) break;
+    }
+    const yourRunOut = new Date(now.getTime() + Math.max(0, remaining) / rate * DAY);
+    return { s, rate, start, runOut, now, doses, taken, remaining, expected, schedPills, schedDays, prescTaken, yourRunOut };
+  }
+
+  function render() {
+    const m = model();
+    document.getElementById('s-left').textContent = fmt(m.remaining);
+    const diff = m.remaining - m.expected; // + means more pills left than pace
+    const diffEl = document.getElementById('s-diff');
+    diffEl.textContent = (diff > 0 ? '+' : '') + fmt(diff);
+    diffEl.style.color = Math.abs(diff) < 0.05 ? '' : diff > 0 ? 'var(--good)' : 'var(--bad)';
+    document.getElementById('s-day0').textContent = fmt(Math.max(0, (m.runOut - m.now) / DAY));
+
+    const sum = document.getElementById('summary');
+    const abs = fmt(Math.abs(diff));
+    const day0 = fmtDate(m.runOut);
+    if (Math.abs(diff) < 0.05) {
+      sum.innerHTML = `You're right on the average pace. Day 0 is <b>${day0}</b>.`;
+    } else if (diff < 0) {
+      sum.innerHTML = `You've taken <b class="bad">${abs} more</b> pills than the average pace. At ${fmt(m.rate, 2)}/day, what's left runs out <b>${fmtDate(m.yourRunOut)}</b> vs. day 0 on <b>${day0}</b>.`;
+    } else {
+      sum.innerHTML = `You've taken <b class="good">${abs} fewer</b> pills than the average pace. At ${fmt(m.rate, 2)}/day, what's left lasts until <b>${fmtDate(m.yourRunOut)}</b> vs. day 0 on <b>${day0}</b>.`;
+    }
+
+    const notes = [`By the actual step schedule you'd have taken about ${fmt(m.prescTaken)} by now (you've taken ${fmt(m.taken)}).`];
+    if (Math.abs(m.schedPills - m.s.startCount) > 0.01) {
+      notes.push(`Heads up: the schedule needs ${fmt(m.schedPills)} pills but ${m.s.startCount} were dispensed.`);
+    }
+    document.getElementById('sched-note').textContent = notes.join(' ');
+
+    renderChart(m);
+    renderHistory(m);
+  }
+
+  function renderChart(m) {
+    const svg = document.getElementById('chart');
+    const W = Math.max(280, svg.parentElement.clientWidth);
+    const H = Math.round(Math.min(340, Math.max(220, W * 0.62)));
+    const pad = { l: 32, r: 12, t: 14, b: 26 };
+    const css = getComputedStyle(document.documentElement);
+    const c = k => css.getPropertyValue(k).trim();
+
+    const lastDose = m.doses.length ? m.doses[m.doses.length - 1].date.getTime() : 0;
+    const x0 = m.start.getTime();
+    const x1 = Math.max(m.runOut.getTime(), m.now.getTime(), lastDose) + 0.6 * DAY;
+    const yMax = Math.max(m.s.startCount, 1);
+    const X = t => pad.l + (t - x0) / (x1 - x0) * (W - pad.l - pad.r);
+    const Y = v => pad.t + (1 - v / yMax) * (H - pad.t - pad.b);
+
+    let out = '';
+    // y grid
+    const yStep = yMax > 40 ? 10 : yMax > 15 ? 5 : 1;
+    for (let v = 0; v <= yMax; v += yStep) {
+      out += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${c('--grid')}" />`;
+      out += `<text x="${pad.l - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="${c('--muted')}">${v}</text>`;
+    }
+    // x ticks at local midnights
+    const pxPerDay = (W - pad.l - pad.r) / ((x1 - x0) / DAY);
+    const step = Math.max(1, Math.ceil(46 / pxPerDay));
+    const first = new Date(m.start); first.setHours(0, 0, 0, 0);
+    for (let d = new Date(first), i = 0; d.getTime() <= x1; d.setDate(d.getDate() + 1), i++) {
+      if (d.getTime() < x0 || i % step) continue;
+      const x = X(d.getTime());
+      out += `<line x1="${x}" x2="${x}" y1="${H - pad.b}" y2="${H - pad.b + 4}" stroke="${c('--muted')}" />`;
+      out += `<text x="${x}" y="${H - 8}" text-anchor="middle" font-size="11" fill="${c('--muted')}">${d.getMonth() + 1}/${d.getDate()}</text>`;
+    }
+    out += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="${c('--muted')}" />`;
+
+    // today marker
+    const nx = X(m.now.getTime());
+    out += `<line x1="${nx}" x2="${nx}" y1="${pad.t}" y2="${H - pad.b}" stroke="${c('--muted')}" stroke-dasharray="3 4" opacity=".6" />`;
+    out += `<text x="${nx + 4}" y="${pad.t + 10}" font-size="11" fill="${c('--muted')}">now</text>`;
+
+    // red: straight average line to day 0
+    const rx = X(m.runOut.getTime());
+    out += `<line x1="${X(x0)}" y1="${Y(m.s.startCount)}" x2="${rx}" y2="${Y(0)}" stroke="${c('--red')}" stroke-width="2.5" stroke-linecap="round" />`;
+    out += `<circle cx="${rx}" cy="${Y(0)}" r="4" fill="${c('--red')}" />`;
+    const anchor = rx > W - 90 ? 'end' : 'middle';
+    const ax = anchor === 'end' ? rx - 6 : rx;
+    out += `<text x="${ax}" y="${Y(0) - 12}" text-anchor="${anchor}" font-size="12" font-weight="600" fill="${c('--red')}">Day 0 · ${m.runOut.getMonth() + 1}/${m.runOut.getDate()}</text>`;
+
+    // yellow: actual pills left, stepping down at each dose
+    let cur = m.s.startCount;
+    let d = `M${X(x0)},${Y(cur)}`;
+    for (const dose of m.doses) {
+      const t = Math.max(x0, dose.date.getTime());
+      d += ` L${X(t)},${Y(cur)}`;
+      cur -= dose.pills;
+      d += ` L${X(t)},${Y(Math.max(0, cur))}`;
+    }
+    const endT = Math.max(m.now.getTime(), lastDose);
+    d += ` L${X(endT)},${Y(Math.max(0, cur))}`;
+    out += `<path d="${d}" fill="none" stroke="${c('--yellow')}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />`;
+
+    // gap between where you should be and where you are, at "now"
+    const ey = Y(m.expected), ay = Y(Math.max(0, m.remaining));
+    if (Math.abs(ey - ay) > 1) {
+      out += `<line x1="${nx}" x2="${nx}" y1="${ey}" y2="${ay}" stroke="${c('--text')}" stroke-width="1.5" />`;
+    }
+    out += `<circle cx="${nx}" cy="${ey}" r="4" fill="${c('--red')}" />`;
+    out += `<circle cx="${nx}" cy="${ay}" r="4.5" fill="${c('--yellow')}" stroke="${c('--card')}" stroke-width="1.5" />`;
+    const diff = m.remaining - m.expected;
+    const lbl = (diff > 0 ? '+' : '') + fmt(diff);
+    const lx = nx + 8 > W - 50 ? nx - 8 : nx + 8;
+    out += `<text x="${lx}" y="${(ey + ay) / 2 + 4}" text-anchor="${lx < nx ? 'end' : 'start'}" font-size="12" font-weight="700" fill="${c('--text')}">${lbl}</text>`;
+
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = out;
+  }
+
+  function renderHistory(m) {
+    const el = document.getElementById('history');
+    if (!m.doses.length) { el.innerHTML = '<p class="empty">No doses logged yet.</p>'; return; }
+    const byDay = new Map();
+    for (const d of [...m.doses].reverse()) {
+      const k = d.date.toDateString();
+      if (!byDay.has(k)) byDay.set(k, []);
+      byDay.get(k).push(d);
+    }
+    let html = '';
+    for (const [, list] of byDay) {
+      const pills = list.reduce((a, d) => a + d.pills, 0);
+      html += `<div class="day"><div class="day-h"><span>${fmtDate(list[0].date)}</span><span>${fmt(pills, 2)} pills · ${fmt(pills * m.s.mgPerPill)} mg</span></div>`;
+      for (const d of list) {
+        html += `<div class="dose"><span>${fmtTime(d.date)} — ${fmt(d.pills, 2)} pill${d.pills === 1 ? '' : 's'} (${fmt(d.pills * m.s.mgPerPill)} mg)</span>` +
+          `<button type="button" data-del="${d.id}" aria-label="Delete">✕</button></div>`;
+      }
+      html += '</div>';
+    }
+    el.innerHTML = html;
+  }
+
+  // ---- settings UI ----
+  function renderSettings() {
+    const s = state.settings;
+    document.getElementById('s-count').value = s.startCount;
+    document.getElementById('s-mg').value = s.mgPerPill;
+    document.getElementById('s-start').value = s.start;
+    renderPhases(s.phases);
+  }
+  function renderPhases(phases) {
+    document.getElementById('phases').innerHTML = phases.map((p, i) => `
+      <div class="phase">
+        <div><label>Step ${i + 1}: mg/day</label><input type="number" min="0" step="any" data-mg value="${p.mg}"></div>
+        <div><label>for how many days</label><input type="number" min="1" step="1" data-days value="${p.days}"></div>
+        <button type="button" data-rm-phase="${i}" aria-label="Remove step">✕</button>
+      </div>`).join('');
+  }
+  function readPhases() {
+    return [...document.querySelectorAll('#phases .phase')].map(row => ({
+      mg: Number(row.querySelector('[data-mg]').value),
+      days: Number(row.querySelector('[data-days]').value)
+    }));
+  }
+
+  // ---- events ----
+  const timeInput = document.getElementById('f-time');
+  const setNow = () => { timeInput.value = toLocalInput(new Date()); };
+  setNow();
+  document.getElementById('b-now').addEventListener('click', setNow);
+
+  document.getElementById('log-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const pills = Number(document.getElementById('f-pills').value);
+    if (!timeInput.value || !(pills > 0)) return;
+    state.doses.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t: timeInput.value, pills });
+    save(); render(); setNow();
+  });
+
+  document.getElementById('history').addEventListener('click', e => {
+    const id = e.target.closest('[data-del]')?.dataset.del;
+    if (!id) return;
+    const d = state.doses.find(x => x.id === id);
+    if (d && confirm(`Delete ${d.pills} pill(s) at ${fmtTime(parseLocal(d.t))} on ${fmtDate(parseLocal(d.t))}?`)) {
+      state.doses = state.doses.filter(x => x.id !== id);
+      save(); render();
+    }
+  });
+
+  document.getElementById('b-add-phase').addEventListener('click', () => {
+    renderPhases([...readPhases(), { mg: 0, days: 7 }]);
+  });
+  document.getElementById('phases').addEventListener('click', e => {
+    const i = e.target.closest('[data-rm-phase]')?.dataset.rmPhase;
+    if (i == null) return;
+    const p = readPhases(); p.splice(Number(i), 1); renderPhases(p);
+  });
+  document.getElementById('b-save').addEventListener('click', () => {
+    const phases = readPhases().filter(p => p.mg > 0 && p.days > 0);
+    const startCount = Number(document.getElementById('s-count').value);
+    const mgPerPill = Number(document.getElementById('s-mg').value);
+    const start = document.getElementById('s-start').value;
+    if (!phases.length || !(startCount > 0) || !(mgPerPill > 0) || !start) {
+      alert('Fill in pills, mg per pill, start date, and at least one dose step.');
+      return;
+    }
+    state.settings = { startCount, mgPerPill, start, phases };
+    save(); render(); renderSettings();
+    document.getElementById('settings').open = false;
+  });
+
+  document.getElementById('b-export').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `pill-tracker-${toLocalInput(new Date()).slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  document.getElementById('b-import').addEventListener('click', () => document.getElementById('f-import').click());
+  document.getElementById('f-import').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const s = JSON.parse(await file.text());
+      if (!s.settings || !Array.isArray(s.doses)) throw new Error('bad file');
+      state = s; save(); render(); renderSettings();
+    } catch (err) {
+      alert("That file doesn't look like a Pill Tracker backup.");
+    }
+    e.target.value = '';
+  });
+  document.getElementById('b-reset').addEventListener('click', () => {
+    if (!confirm('Erase all logged doses and settings?')) return;
+    state = JSON.parse(JSON.stringify(DEFAULTS));
+    save(); render(); renderSettings();
+  });
+
+  let rt;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 100); });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', render);
+  // Refresh the "now" position if the app stays open.
+  setInterval(render, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+
+  renderSettings();
+  render();
+})();
+</script>
+</body>
+</html>
