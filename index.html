@@ -24,6 +24,8 @@
     --accent-text: #ffffff;
     --good: #2f8a4c;
     --bad: #c2410c;
+    --purple: #7c3aed;
+    --green: #16a34a;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -39,6 +41,8 @@
       --accent-text: #111113;
       --good: #5fcf86;
       --bad: #ff8a4c;
+      --purple: #b794ff;
+      --green: #4ade80;
     }
   }
   * { box-sizing: border-box; }
@@ -88,6 +92,14 @@
   button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); flex: 1; font-weight: 600; }
   .dose { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
   .since { text-align: right; font-size: 16pt; font-weight: 600; color: var(--yellow); margin-top: 4px; }
+  .today { text-align: right; font-size: 15px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .sub { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .seg5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .seg5 button { min-height: 44px; font-size: 17px; font-weight: 600; padding: 0; }
+  .seg5 button[aria-pressed="true"] { background: var(--purple); color: #fff; border-color: var(--purple); }
+  .wide { width: 100%; margin-top: 8px; }
+  button:disabled { opacity: .4; cursor: default; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin: 0 4px 0 -2px; }
   .dose button { min-height: 36px; padding: 0 10px; color: var(--muted); }
   details summary { cursor: pointer; font-weight: 600; list-style: none; }
   details summary::-webkit-details-marker { display: none; }
@@ -107,18 +119,21 @@
       <div class="stat"><div class="v" id="s-diff">–</div><div class="l" id="s-diff-l">mg vs. allowance</div></div>
       <div class="stat"><div class="v" id="s-day0">–</div><div class="l">days left</div></div>
     </div>
-    <div class="chart-wrap"><svg id="chart" role="img" aria-label="mg left to take over time"></svg></div>
+    <div class="chart-wrap"><svg id="chart" role="img" aria-label="Last few days: mg left, doses, agitation and sleep"></svg></div>
     <div class="since" id="since"></div>
+    <div class="today" id="today"></div>
     <div class="legend">
-      <span><span class="sw" style="background:var(--red)"></span>Daily allowance</span>
-      <span><span class="sw" style="background:var(--yellow)"></span>Actually left</span>
+      <span><span class="sw" style="background:var(--red)"></span>Daily allowance (mg)</span>
+      <span><span class="sw" style="background:var(--yellow)"></span><span class="dot" style="background:var(--yellow)"></span>Actually left, doses (mg)</span>
+      <span><span class="sw" style="background:var(--purple)"></span><span class="dot" style="background:var(--purple)"></span>Agitation 1–5</span>
+      <span><span class="sw" style="background:var(--green)"></span><span class="dot" style="background:var(--green)"></span>Sleep hrs ÷ 2</span>
     </div>
     <p class="summary" id="summary"></p>
     <p class="note" id="sched-note"></p>
   </section>
 
   <section class="card">
-    <h2>Log a dose</h2>
+    <h2>Log</h2>
     <form id="log-form">
       <div class="time-row">
         <div>
@@ -127,11 +142,29 @@
         </div>
         <button type="button" id="b-now">Now</button>
       </div>
-      <div class="seg" role="group" aria-label="Dose">
+      <div class="seg" id="dose-seg" role="group" aria-label="Dose">
         <button type="button" data-mg="15" aria-pressed="true">15 mg</button>
         <button type="button" data-mg="30" aria-pressed="false">30 mg</button>
       </div>
       <button type="submit" class="primary" id="b-log">Log 15 mg dose</button>
+      <div class="sub">
+        <label>Agitation (1 = calm, 5 = very agitated)</label>
+        <div class="seg5" id="ag-seg" role="group" aria-label="Agitation">
+          <button type="button" data-ag="1" aria-pressed="false">1</button>
+          <button type="button" data-ag="2" aria-pressed="false">2</button>
+          <button type="button" data-ag="3" aria-pressed="false">3</button>
+          <button type="button" data-ag="4" aria-pressed="false">4</button>
+          <button type="button" data-ag="5" aria-pressed="false">5</button>
+        </div>
+        <button type="button" class="primary wide" id="b-ag" disabled>Pick 1–5, then log agitation</button>
+      </div>
+      <div class="sub">
+        <label for="f-sleep">Sleep last night (hours, 1–10)</label>
+        <div class="time-row">
+          <div><input type="number" id="f-sleep" min="1" max="10" step="0.5" inputmode="decimal" placeholder="e.g. 7"></div>
+          <button type="button" class="primary" id="b-sleep">Log sleep</button>
+        </div>
+      </div>
       <div class="logged" id="logged" aria-live="polite"></div>
     </form>
   </section>
@@ -169,7 +202,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-21-9';
+  const BUILD = '2026-10-21-10';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -185,8 +218,15 @@
     doses: [{ id: 'seed', t: '2026-10-20T12:00', mg: 135 }]
   };
 
-  let state = load();
+  let state = withLists(load());
   save();
+
+  // Agitation and sleep logs were added later; older saves don't have them.
+  function withLists(s) {
+    if (!Array.isArray(s.agitation)) s.agitation = [];
+    if (!Array.isArray(s.sleep)) s.sleep = [];
+    return s;
+  }
 
   function load() {
     try {
@@ -271,7 +311,20 @@
     const taken = total - cur;
     const remaining = cur;
     const daysLeft = Math.max(0, Math.ceil(wallDays(now, end))); // counting today
-    return { s, start, end, now, doses, counted, red, yellow, total, taken, remaining, expected, daysLeft };
+    const byTime = list => list.map(x => ({ ...x, date: parseLocal(x.t) })).sort((a, b) => a.date - b.date);
+    const agitation = byTime(state.agitation);
+    const sleep = byTime(state.sleep);
+
+    // Running mg total within each calendar day, for History and the today line.
+    const dayKey = d => d.toDateString();
+    let runKey = '', run = 0;
+    for (const d of doses) {
+      if (dayKey(d.date) !== runKey) { runKey = dayKey(d.date); run = 0; }
+      run += d.mg;
+      d.dayTotal = run;
+    }
+    const todayMg = doses.filter(d => dayKey(d.date) === dayKey(now) && d.date <= now).reduce((a, d) => a + d.mg, 0);
+    return { s, start, end, now, doses, counted, red, yellow, total, taken, remaining, expected, daysLeft, agitation, sleep, todayMg };
   }
 
   // Under the allowance = + (extra mg left to take today), over = - (deficit).
@@ -322,6 +375,7 @@
     document.getElementById('since').textContent = last
       ? `${Math.floor(mins / 60)}h ${mins % 60}m since last dose`
       : 'No doses logged';
+    document.getElementById('today').textContent = `Today: ${fmt(m.todayMg)} mg of ${fmt(m.s.mgPerDay)} mg`;
 
     renderChart(m);
     renderHistory(m);
@@ -332,72 +386,108 @@
       `Build ${BUILD.split("-").pop()} · ${navigator.standalone ? 'Home Screen app' : 'Safari tab'} · ${n} dose${n === 1 ? '' : 's'} saved on this device`;
   }
 
+  // Value of a stepped/linear series at time t.
+  function valueAt(pts, t) {
+    if (t <= pts[0][0]) return pts[0][1];
+    for (let i = pts.length - 1; i >= 0; i--) {
+      if (pts[i][0] <= t) {
+        const nx = pts[i + 1];
+        if (!nx || nx[0] === pts[i][0]) return pts[i][1];
+        return pts[i][1] + (nx[1] - pts[i][1]) * (t - pts[i][0]) / (nx[0] - pts[i][0]);
+      }
+    }
+    return pts[pts.length - 1][1];
+  }
+
   function renderChart(m) {
     const svg = document.getElementById('chart');
     const W = Math.max(280, svg.parentElement.clientWidth);
-    const H = Math.round(Math.min(340, Math.max(220, W * 0.62)));
-    const pad = { l: 38, r: 12, t: 14, b: 26 };
+    const H = Math.round(Math.min(360, Math.max(240, W * 0.68)));
+    const pad = { l: 38, r: 22, t: 14, b: 26 };
     const css = getComputedStyle(document.documentElement);
     const c = k => css.getPropertyValue(k).trim();
+    const nowT = m.now.getTime();
 
-    const lastDose = m.counted.length ? m.counted[m.counted.length - 1].date.getTime() : 0;
-    const x0 = m.start.getTime();
-    const x1 = Math.max(m.end.getTime(), m.now.getTime(), lastDose) + 0.6 * DAY;
-    const yMax = Math.max(1, ...m.red.map(p => p[1]), ...m.yellow.map(p => p[1]));
+    // Window: midnight two days before today (not before "Counting from")
+    // through 6 hours from now.
+    const from = new Date(m.now); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - 2);
+    const x0 = Math.max(m.start.getTime(), from.getTime());
+    const x1 = Math.max(nowT + 6 * 3600000, x0 + DAY);
     const X = t => pad.l + (t - x0) / (x1 - x0) * (W - pad.l - pad.r);
-    const Y = v => pad.t + (1 - v / yMax) * (H - pad.t - pad.b);
 
-    let out = '';
-    // y grid
-    const raw = yMax / 6, mag = 10 ** Math.floor(Math.log10(raw));
+    // Yellow runs on to "now" (or the last dose) so its end matches the gap marker.
+    const yellow = [...m.yellow];
+    const lastY = yellow[yellow.length - 1];
+    yellow.push([Math.max(nowT, lastY[0]), lastY[1]]);
+
+    // Left axis: mg, scaled to what's visible in the window.
+    const inWin = pts => pts.filter(p => p[0] >= x0 && p[0] <= x1).map(p => p[1]);
+    const vis = [...inWin(m.red), ...inWin(yellow), valueAt(m.red, x0), valueAt(m.red, x1), valueAt(yellow, x0), valueAt(yellow, Math.min(x1, yellow[yellow.length - 1][0])), m.expected, Math.max(0, m.remaining)];
+    let lo = Math.max(0, Math.min(...vis)), hi = Math.max(...vis);
+    if (hi - lo < 60) { const mid = (hi + lo) / 2; lo = Math.max(0, mid - 30); hi = lo + 60; }
+    const raw = (hi - lo) / 5, mag = 10 ** Math.floor(Math.log10(raw));
     const yStep = [1, 2, 5, 10].map(k => k * mag).find(v => v >= raw);
-    for (let v = 0; v <= yMax; v += yStep) {
+    lo = Math.floor(lo / yStep) * yStep; hi = Math.ceil(hi / yStep) * yStep;
+    const plotH = H - pad.t - pad.b;
+    const Y = v => pad.t + (1 - (v - lo) / (hi - lo)) * plotH;
+    // Right axis: agitation 1-5 and sleep hours / 2 on a shared 0-5 scale.
+    const R = v => pad.t + (1 - v / 5) * plotH;
+
+    let out = `<defs><clipPath id="plot"><rect x="${pad.l}" y="${pad.t - 6}" width="${W - pad.l - pad.r}" height="${plotH + 12}" /></clipPath></defs>`;
+    for (let v = lo; v <= hi + 1e-9; v += yStep) {
       out += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${c('--grid')}" />`;
-      out += `<text x="${pad.l - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="${c('--muted')}">${v}</text>`;
+      out += `<text x="${pad.l - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="${c('--muted')}">${fmt(v)}</text>`;
     }
-    // x ticks at local midnights
-    const pxPerDay = (W - pad.l - pad.r) / ((x1 - x0) / DAY);
-    const step = Math.max(1, Math.ceil(46 / pxPerDay));
-    const first = new Date(m.start); first.setHours(0, 0, 0, 0);
-    for (let d = new Date(first), i = 0; d.getTime() <= x1; d.setDate(d.getDate() + 1), i++) {
-      if (d.getTime() < x0 || i % step) continue;
-      const x = X(d.getTime());
-      out += `<line x1="${x}" x2="${x}" y1="${H - pad.b}" y2="${H - pad.b + 4}" stroke="${c('--muted')}" />`;
-      out += `<text x="${x}" y="${H - 8}" text-anchor="middle" font-size="11" fill="${c('--muted')}">${d.getMonth() + 1}/${d.getDate()}</text>`;
+    for (let v = 1; v <= 5; v++) {
+      out += `<text x="${W - pad.r + 5}" y="${R(v) + 4}" font-size="11" fill="${c('--purple')}">${v}</text>`;
     }
-    out += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="${c('--muted')}" />`;
+    // x axis: day labels at midnight, small ticks every 6 hours
+    for (let d = new Date(x0); d.getTime() <= x1; d.setHours(d.getHours() + 6)) {
+      d.setMinutes(0, 0, 0); d.setHours(Math.floor(d.getHours() / 6) * 6);
+      if (d.getTime() < x0) continue;
+      const x = X(d.getTime()), midnight = d.getHours() === 0;
+      out += `<line x1="${x}" x2="${x}" y1="${H - pad.b}" y2="${H - pad.b + (midnight ? 5 : 3)}" stroke="${c('--muted')}" />`;
+      if (midnight) {
+        out += `<line x1="${x}" x2="${x}" y1="${pad.t}" y2="${H - pad.b}" stroke="${c('--grid')}" />`;
+        out += `<text x="${x}" y="${H - 8}" text-anchor="middle" font-size="11" fill="${c('--muted')}">${d.getMonth() + 1}/${d.getDate()}</text>`;
+      }
+    }
+    out += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${H - pad.b}" y2="${H - pad.b}" stroke="${c('--muted')}" />`;
 
-    // today marker
-    const nx = X(m.now.getTime());
+    // now marker
+    const nx = X(nowT);
     out += `<line x1="${nx}" x2="${nx}" y1="${pad.t}" y2="${H - pad.b}" stroke="${c('--muted')}" stroke-dasharray="3 4" opacity=".6" />`;
-    out += `<text x="${nx + 4}" y="${pad.t + 10}" font-size="11" fill="${c('--muted')}">now</text>`;
+    out += `<text x="${nx - 4}" y="${pad.t + 10}" text-anchor="end" font-size="11" fill="${c('--muted')}">now</text>`;
 
-    // red: allotted pace to the appointment
-    const [ex, ev] = m.red[m.red.length - 1];
-    const rx = X(ex), ry = Y(ev);
-    const rd = m.red.map(([t, v], i) => `${i ? 'L' : 'M'}${X(t)},${Y(v)}`).join(' ');
-    out += `<path d="${rd}" fill="none" stroke="${c('--red')}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />`;
-    out += `<circle cx="${rx}" cy="${ry}" r="4" fill="${c('--red')}" />`;
-    const anchor = rx > W - 90 ? 'end' : 'middle';
-    const ax = anchor === 'end' ? rx - 6 : rx;
-    out += `<text x="${ax}" y="${ry - 12}" text-anchor="${anchor}" font-size="12" font-weight="600" fill="${c('--red')}">Appt ${m.end.getMonth() + 1}/${m.end.getDate()}</text>`;
-
-    // yellow: actually left, stepping down at each dose
-    let d = m.yellow.map(([t, v], i) => `${i ? 'L' : 'M'}${X(t)},${Y(Math.max(0, v))}`).join(' ');
-    const lastY = m.yellow[m.yellow.length - 1];
-    d += ` L${X(Math.max(m.now.getTime(), lastY[0]))},${Y(Math.max(0, lastY[1]))}`;
-    out += `<path d="${d}" fill="none" stroke="${c('--yellow')}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />`;
+    out += `<g clip-path="url(#plot)">`;
+    const path = (pts, yf) => pts.map(([t, v], i) => `${i ? 'L' : 'M'}${X(t)},${yf(v)}`).join(' ');
+    // red: daily allowance
+    out += `<path d="${path(m.red, Y)}" fill="none" stroke="${c('--red')}" stroke-width="2.5" stroke-linejoin="round" />`;
+    // yellow: actually left, with a dot at each dose
+    out += `<path d="${path(yellow, v => Y(Math.max(0, v)))}" fill="none" stroke="${c('--yellow')}" stroke-width="2.5" stroke-linejoin="round" />`;
+    let level = m.total;
+    for (const d of m.counted) {
+      level -= d.mg;
+      out += `<circle cx="${X(d.date.getTime())}" cy="${Y(Math.max(0, level))}" r="4" fill="${c('--yellow')}" stroke="${c('--card')}" stroke-width="1.5" />`;
+    }
+    // purple: agitation, green: sleep / 2
+    const series = (list, val, color) => {
+      if (!list.length) return '';
+      const pts = list.map(x => [x.date.getTime(), val(x)]);
+      return (pts.length > 1 ? `<path d="${path(pts, R)}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" />` : '') +
+        pts.map(([t, v]) => `<circle cx="${X(t)}" cy="${R(v)}" r="4.5" fill="${color}" stroke="${c('--card')}" stroke-width="1.5" />`).join('');
+    };
+    out += series(m.sleep, x => x.hours / 2, c('--green'));
+    out += series(m.agitation, x => x.level, c('--purple'));
 
     // gap between where you should be and where you are, at "now"
     const ey = Y(m.expected), ay = Y(Math.max(0, m.remaining));
-    if (Math.abs(ey - ay) > 1) {
-      out += `<line x1="${nx}" x2="${nx}" y1="${ey}" y2="${ay}" stroke="${c('--text')}" stroke-width="1.5" />`;
-    }
+    if (Math.abs(ey - ay) > 1) out += `<line x1="${nx}" x2="${nx}" y1="${ey}" y2="${ay}" stroke="${c('--text')}" stroke-width="1.5" />`;
     out += `<circle cx="${nx}" cy="${ey}" r="4" fill="${c('--red')}" />`;
     out += `<circle cx="${nx}" cy="${ay}" r="4.5" fill="${c('--yellow')}" stroke="${c('--card')}" stroke-width="1.5" />`;
-    const diff = Math.round(m.remaining - m.expected);
-    const lbl = signedMg(diff);
-    const lx = nx + 8 > W - 50 ? nx - 8 : nx + 8;
+    out += `</g>`;
+    const lbl = signedMg(Math.round(m.remaining - m.expected));
+    const lx = nx + 8 > W - pad.r - 30 ? nx - 8 : nx + 8;
     out += `<text x="${lx}" y="${(ey + ay) / 2 + 4}" text-anchor="${lx < nx ? 'end' : 'start'}" font-size="12" font-weight="700" fill="${c('--text')}">${lbl}</text>`;
 
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
@@ -406,13 +496,15 @@
 
   function renderHistory(m) {
     const el = document.getElementById('history');
-    if (!m.doses.length) { el.innerHTML = '<p class="empty">No doses logged yet.</p>'; return; }
-    let html = '';
-    for (const d of [...m.doses].reverse()) {
-      html += `<div class="dose"><span>${fmtDate(d.date)}, ${fmtTime(d.date)} — ${fmt(d.mg)} mg</span>` +
-        `<button type="button" data-del="${d.id}" aria-label="Delete">✕</button></div>`;
-    }
-    el.innerHTML = html;
+    const items = [
+      ...m.doses.map(d => ({ date: d.date, kind: 'dose', id: d.id, text: `${fmt(d.mg)} mg (${fmt(d.dayTotal)} mg today)` })),
+      ...m.agitation.map(a => ({ date: a.date, kind: 'agitation', id: a.id, text: `<span class="dot" style="background:var(--purple)"></span>Agitation ${a.level}/5` })),
+      ...m.sleep.map(x => ({ date: x.date, kind: 'sleep', id: x.id, text: `<span class="dot" style="background:var(--green)"></span>Sleep ${fmt(x.hours, 1)} h` })),
+    ].sort((a, b) => b.date - a.date);
+    if (!items.length) { el.innerHTML = '<p class="empty">Nothing logged yet.</p>'; return; }
+    el.innerHTML = items.map(it =>
+      `<div class="dose"><span>${fmtDate(it.date)}, ${fmtTime(it.date)} — ${it.text}</span>` +
+      `<button type="button" data-kind="${it.kind}" data-del="${it.id}" aria-label="Delete">✕</button></div>`).join('');
   }
 
   // ---- settings UI ----
@@ -434,9 +526,9 @@
 
   let doseMg = 15;
   const logBtn = document.getElementById('b-log');
-  document.querySelectorAll('.seg button').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('#dose-seg button').forEach(btn => btn.addEventListener('click', () => {
     doseMg = Number(btn.dataset.mg);
-    document.querySelectorAll('.seg button').forEach(o => o.setAttribute('aria-pressed', String(o === btn)));
+    document.querySelectorAll('#dose-seg button').forEach(o => o.setAttribute('aria-pressed', String(o === btn)));
     logBtn.textContent = `Log ${doseMg} mg dose`;
   }));
 
@@ -445,17 +537,58 @@
     followClock(); // an untouched field logs the moment you tap, not when the app was opened
     if (!timeInput.value) return;
     const when = parseLocal(timeInput.value);
-    state.doses.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t: timeInput.value, mg: doseMg });
+    state.doses.push({ id: newId(), t: timeInput.value, mg: doseMg });
     save(); render(); setNow();
-    document.getElementById('logged').textContent = `Logged ${doseMg} mg at ${fmtTime(when)} on ${fmtDate(when)}`;
+    logged(`Logged ${doseMg} mg at ${fmtTime(when)} on ${fmtDate(when)}`);
+  });
+
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const logged = msg => { document.getElementById('logged').textContent = msg; };
+
+  let agLevel = 0;
+  const agBtn = document.getElementById('b-ag');
+  document.querySelectorAll('#ag-seg button').forEach(btn => btn.addEventListener('click', () => {
+    agLevel = Number(btn.dataset.ag);
+    document.querySelectorAll('#ag-seg button').forEach(o => o.setAttribute('aria-pressed', String(o === btn)));
+    agBtn.disabled = false;
+    agBtn.textContent = `Log agitation ${agLevel}`;
+  }));
+  agBtn.addEventListener('click', () => {
+    followClock();
+    if (!agLevel || !timeInput.value) return;
+    const when = parseLocal(timeInput.value);
+    state.agitation.push({ id: newId(), t: timeInput.value, level: agLevel });
+    save(); render();
+    logged(`Logged agitation ${agLevel}/5 at ${fmtTime(when)} on ${fmtDate(when)}`);
+    agLevel = 0;
+    document.querySelectorAll('#ag-seg button').forEach(o => o.setAttribute('aria-pressed', 'false'));
+    agBtn.disabled = true;
+    agBtn.textContent = 'Pick 1–5, then log agitation';
+    setNow();
+  });
+
+  document.getElementById('b-sleep').addEventListener('click', () => {
+    followClock();
+    const field = document.getElementById('f-sleep');
+    const hours = Number(field.value);
+    if (!(hours >= 1 && hours <= 10)) { alert('Enter hours of sleep from 1 to 10.'); return; }
+    const when = parseLocal(timeInput.value);
+    state.sleep.push({ id: newId(), t: timeInput.value, hours });
+    save(); render();
+    logged(`Logged ${fmt(hours, 1)} h sleep on ${fmtDate(when)}`);
+    field.value = '';
+    setNow();
   });
 
   document.getElementById('history').addEventListener('click', e => {
-    const id = e.target.closest('[data-del]')?.dataset.del;
-    if (!id) return;
-    const d = state.doses.find(x => x.id === id);
-    if (d && confirm(`Delete ${d.mg} mg at ${fmtTime(parseLocal(d.t))} on ${fmtDate(parseLocal(d.t))}?`)) {
-      state.doses = state.doses.filter(x => x.id !== id);
+    const btn = e.target.closest('[data-del]');
+    if (!btn) return;
+    const list = { dose: 'doses', agitation: 'agitation', sleep: 'sleep' }[btn.dataset.kind];
+    const item = state[list].find(x => x.id === btn.dataset.del);
+    if (!item) return;
+    const what = list === 'doses' ? `${item.mg} mg` : list === 'agitation' ? `agitation ${item.level}/5` : `${item.hours} h sleep`;
+    if (confirm(`Delete ${what} at ${fmtTime(parseLocal(item.t))} on ${fmtDate(parseLocal(item.t))}?`)) {
+      state[list] = state[list].filter(x => x.id !== item.id);
       save(); render();
     }
   });
@@ -501,13 +634,15 @@
   document.getElementById('b-csv').addEventListener('click', () => {
     const rows = [];
     for (const p of [...(state.history || []), state.settings]) {
-      rows.push([p.start, 'Refill / start', '', `${fmt(p.mgPerDay)} mg/day allotment; target end ${p.end.replace('T', ' ')}`]);
-      rows.push([p.end, 'Target end', '', '']);
+      rows.push([p.start, 'Refill / start', '', '', `${fmt(p.mgPerDay)} mg/day allotment; target end ${p.end.replace('T', ' ')}`]);
+      rows.push([p.end, 'Target end', '', '', '']);
     }
-    for (const d of state.doses) rows.push([d.t, 'Dose', fmt(d.mg), '']);
+    for (const d of state.doses) rows.push([d.t, 'Dose', fmt(d.mg), '', '']);
+    for (const a of state.agitation) rows.push([a.t, 'Agitation', '', String(a.level), '1-5']);
+    for (const x of state.sleep) rows.push([x.t, 'Sleep', '', fmt(x.hours, 1), 'hours']);
     rows.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
-    const csv = ['Date,Time,Event,mg,Notes', ...rows.map(([t, ev, mg, note]) =>
-      [t.slice(0, 10), t.slice(11, 16), ev, mg, note].map(v => /[",]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v).join(','))];
+    const csv = ['Date,Time,Event,mg,Value,Notes', ...rows.map(([t, ev, mg, val, note]) =>
+      [t.slice(0, 10), t.slice(11, 16), ev, mg, val, note].map(v => /[",]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v).join(','))];
     download(csv.join('\n') + '\n', 'text/csv', `pill-tracker-${today()}.csv`);
   });
   document.getElementById('b-import').addEventListener('click', () => document.getElementById('f-import').click());
@@ -517,7 +652,7 @@
     try {
       const s = JSON.parse(await file.text());
       if (!s.settings || !Array.isArray(s.doses)) throw new Error('bad file');
-      state = migrate(s); save(); render(); renderSettings();
+      state = withLists(migrate(s)); save(); render(); renderSettings();
     } catch (err) {
       alert("That file doesn't look like a Pill Tracker backup.");
     }
@@ -525,7 +660,7 @@
   });
   document.getElementById('b-reset').addEventListener('click', () => {
     if (!confirm('Erase all logged doses and settings?')) return;
-    state = JSON.parse(JSON.stringify(DEFAULTS));
+    state = withLists(JSON.parse(JSON.stringify(DEFAULTS)));
     save(); render(); renderSettings();
   });
 
