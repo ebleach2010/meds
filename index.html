@@ -66,8 +66,13 @@
   svg { display: block; width: 100%; height: auto; }
   .legend { display: flex; gap: 14px; font-size: 13px; color: var(--muted); margin-top: 6px; flex-wrap: wrap; }
   .sw { display: inline-block; width: 16px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
-  form.log { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
-  form.log > div, .grid2 > div, .phase > div { min-width: 0; }
+  .time-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+  .time-row > div, .grid2 > div { min-width: 0; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .seg button { min-height: 48px; font-size: 17px; font-weight: 600; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  #b-log { width: 100%; margin-top: 8px; min-height: 52px; font-size: 18px; }
+  .logged { min-height: 20px; margin-top: 8px; font-size: 14px; color: var(--good); text-align: center; }
   label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
   input, button { font: inherit; }
   input[type=number], input[type=datetime-local] {
@@ -114,17 +119,21 @@
 
   <section class="card">
     <h2>Log a dose</h2>
-    <form class="log" id="log-form">
-      <div>
-        <label for="f-time">Date &amp; time</label>
-        <input type="datetime-local" id="f-time" required>
+    <form id="log-form">
+      <div class="time-row">
+        <div>
+          <label for="f-time">Date &amp; time</label>
+          <input type="datetime-local" id="f-time" required>
+        </div>
+        <button type="button" id="b-now">Now</button>
       </div>
-      <button type="button" id="b-now">Now</button>
+      <div class="seg" role="group" aria-label="Dose">
+        <button type="button" data-mg="15" aria-pressed="true">15 mg</button>
+        <button type="button" data-mg="30" aria-pressed="false">30 mg</button>
+      </div>
+      <button type="submit" class="primary" id="b-log">Log 15 mg dose</button>
+      <div class="logged" id="logged" aria-live="polite"></div>
     </form>
-    <div class="row">
-      <button type="submit" form="log-form" class="primary" data-mg="15">15 mg</button>
-      <button type="submit" form="log-form" class="primary" data-mg="30">30 mg</button>
-    </div>
   </section>
 
   <section class="card">
@@ -407,12 +416,21 @@
   setNow();
   document.getElementById('b-now').addEventListener('click', setNow);
 
+  let doseMg = 15;
+  const logBtn = document.getElementById('b-log');
+  document.querySelectorAll('.seg button').forEach(btn => btn.addEventListener('click', () => {
+    doseMg = Number(btn.dataset.mg);
+    document.querySelectorAll('.seg button').forEach(o => o.setAttribute('aria-pressed', String(o === btn)));
+    logBtn.textContent = `Log ${doseMg} mg dose`;
+  }));
+
   document.getElementById('log-form').addEventListener('submit', e => {
     e.preventDefault();
-    const mg = Number(e.submitter?.dataset.mg);
-    if (!timeInput.value || !(mg > 0)) return;
-    state.doses.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t: timeInput.value, mg });
+    if (!timeInput.value) return;
+    const when = parseLocal(timeInput.value);
+    state.doses.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t: timeInput.value, mg: doseMg });
     save(); render(); setNow();
+    document.getElementById('logged').textContent = `Logged ${doseMg} mg at ${fmtTime(when)} on ${fmtDate(when)}`;
   });
 
   document.getElementById('history').addEventListener('click', e => {
@@ -495,7 +513,7 @@
   // Home-screen apps can open a cached copy of this page for a while after
   // an update. On open and on return to the app, fetch the live page past
   // the cache and reload if its BUILD differs.
-  const BUILD = '2026-10-21-4';
+  const BUILD = '2026-10-21-5';
   async function checkForUpdate() {
     try {
       const res = await fetch(location.pathname + '?check=' + Date.now(), { cache: 'no-store' });
