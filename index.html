@@ -158,22 +158,26 @@
 (function () {
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
+  // Bumping VERSION replaces saved data with DEFAULTS on next open.
+  const VERSION = 2;
   const DEFAULTS = {
+    version: VERSION,
     settings: {
       start: '2026-10-19T00:00',
       mgPerDay: 60,
-      end: '2026-11-05T12:00'
+      end: '2026-11-04T00:00'
     },
-    // Taken as of 10/20 (5 × 15 mg) — edit or delete if the time is off.
-    doses: [{ id: 'seed', t: '2026-10-20T08:00', mg: 75 }]
+    // Everything taken from 10/19 through 10/20 (9 × 15 mg), as one entry.
+    doses: [{ id: 'seed', t: '2026-10-20T12:00', mg: 135 }]
   };
 
   let state = load();
+  save();
 
   function load() {
     try {
       const s = JSON.parse(localStorage.getItem(KEY));
-      if (s && s.settings && Array.isArray(s.doses)) return migrate(s);
+      if (s && s.version === VERSION && s.settings && Array.isArray(s.doses)) return s;
     } catch (e) {}
     return JSON.parse(JSON.stringify(DEFAULTS));
   }
@@ -182,6 +186,7 @@
   function migrate(s) {
     const o = s.settings;
     const perPill = o.mgPerPill || 15;
+    s.version = VERSION;
     s.doses = s.doses.map(d => d.mg != null ? d : { id: d.id, t: d.t, mg: d.pills * perPill });
     if (o.end) {
       s.settings = { start: o.start, mgPerDay: o.mgPerDay, end: o.end };
@@ -212,6 +217,13 @@
   const fmtDate = d => d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   const fmtTime = d => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 
+  // Days between two local times by the calendar, so a daylight-saving
+  // change doesn't add or drop an hour.
+  function wallDays(a, b) {
+    const w = d => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds());
+    return (w(b) - w(a)) / DAY;
+  }
+
   function model() {
     const s = state.settings;
     const now = new Date(), nowT = now.getTime();
@@ -223,10 +235,10 @@
     const counted = doses.filter(d => d.date >= start);
 
     // Red: the period's total allotment, spent evenly down to 0 at the appointment.
-    const total = s.mgPerDay * (endT - startT) / DAY;
+    const total = s.mgPerDay * wallDays(start, end);
     const red = [[startT, total], [endT, 0]];
-    const elapsed = Math.min(Math.max(0, nowT - startT), endT - startT) / DAY;
-    const expected = total - s.mgPerDay * elapsed;
+    const frac = Math.min(Math.max(0, nowT - startT), endT - startT) / (endT - startT);
+    const expected = total * (1 - frac);
 
     // Yellow: what's actually left of the total, stepping down at each dose.
     const yellow = [[startT, total]];
@@ -238,7 +250,7 @@
     }
     const taken = total - cur;
     const remaining = cur;
-    const daysLeft = Math.max(0, (endT - nowT) / DAY);
+    const daysLeft = Math.max(0, wallDays(now, end));
     return { s, start, end, now, doses, counted, red, yellow, total, taken, remaining, expected, daysLeft };
   }
 
@@ -263,7 +275,7 @@
     } else if (m.remaining < 0) {
       plan = `You're <b class="bad">${fmt(-m.remaining)} mg over</b> your total for this period, with ${fmt(m.daysLeft)} days to your appointment on <b>${appt}</b>.`;
     } else {
-      plan = `You have <b>${fmt(m.remaining)} mg</b> left before your appointment on <b>${appt}</b>, about <b>${fmt(m.remaining / m.daysLeft)} mg/day</b>.`;
+      plan = `To average ${fmt(m.s.mgPerDay)} mg/day by <b>${appt}</b>, you have <b>${fmt(m.remaining)} mg</b> left, about <b>${fmt(m.remaining / m.daysLeft)} mg/day</b> from here.`;
     }
     sum.innerHTML = `${pace} ${plan}`;
 
