@@ -100,7 +100,7 @@
   <section class="card">
     <div class="stats">
       <div class="stat"><div class="v" id="s-left">–</div><div class="l">mg left</div></div>
-      <div class="stat"><div class="v" id="s-diff">–</div><div class="l">mg vs. allowance</div></div>
+      <div class="stat"><div class="v" id="s-diff">–</div><div class="l" id="s-diff-l">mg vs. allowance</div></div>
       <div class="stat"><div class="v" id="s-day0">–</div><div class="l">days left</div></div>
     </div>
     <div class="chart-wrap"><svg id="chart" role="img" aria-label="mg left to take over time"></svg></div>
@@ -268,7 +268,8 @@
     document.getElementById('s-left').textContent = fmt(m.remaining);
     const diff = Math.round(m.remaining - m.expected); // + means allowance left through today
     const diffEl = document.getElementById('s-diff');
-    diffEl.textContent = (diff > 0 ? '+' : '') + fmt(diff);
+    diffEl.textContent = fmt(Math.abs(diff));
+    document.getElementById('s-diff-l').textContent = diff === 0 ? 'mg on allowance' : diff > 0 ? 'mg under allowance' : 'mg over allowance';
     diffEl.style.color = diff === 0 ? '' : diff > 0 ? 'var(--good)' : 'var(--bad)';
     document.getElementById('s-day0').textContent = fmt(m.daysLeft);
 
@@ -367,7 +368,7 @@
     out += `<circle cx="${nx}" cy="${ey}" r="4" fill="${c('--red')}" />`;
     out += `<circle cx="${nx}" cy="${ay}" r="4.5" fill="${c('--yellow')}" stroke="${c('--card')}" stroke-width="1.5" />`;
     const diff = Math.round(m.remaining - m.expected);
-    const lbl = (diff > 0 ? '+' : '') + fmt(diff);
+    const lbl = diff === 0 ? 'on' : `${fmt(Math.abs(diff))} ${diff > 0 ? 'under' : 'over'}`;
     const lx = nx + 8 > W - 50 ? nx - 8 : nx + 8;
     out += `<text x="${lx}" y="${(ey + ay) / 2 + 4}" text-anchor="${lx < nx ? 'end' : 'start'}" font-size="12" font-weight="700" fill="${c('--text')}">${lbl}</text>`;
 
@@ -499,7 +500,7 @@
   // Home-screen apps can open a cached copy of this page for a while after
   // an update. On open and on return to the app, fetch the live page past
   // the cache and reload if its BUILD differs.
-  const BUILD = '2026-10-21-2';
+  const BUILD = '2026-10-21-3';
   async function checkForUpdate() {
     try {
       const res = await fetch(location.pathname + '?check=' + Date.now(), { cache: 'no-store' });
