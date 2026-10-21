@@ -6,10 +6,9 @@ A single-page web app for tracking doses against a daily mg allotment. No build 
 
 Your total for the period is the allotted mg/day × the days from "Counting from" to your appointment.
 
-- **Red line:** that total spent evenly, reaching 0 at the appointment.
+- **Red line:** what's left of that total if you take exactly the daily allotment. Each calendar day's full allotment counts as soon as the day starts, so the line steps down once a day.
 - **Yellow line:** what you've actually got left, dropping at each logged dose.
-- At "now", the gap between the two is labeled in mg: `+` means you've taken less than the allotment so far, `−` means more.
-- The summary says how many mg are left before the appointment and the mg/day average that works out to, however unevenly you've taken doses so far.
+- At "now", the gap is labeled in mg: `+` means allowance left through today, `−` means over it. With 15 mg doses it moves in 15 mg steps.
 
 Settings: counting-from date, allotted mg/day, appointment. Doses are logged with 15 mg / 30 mg buttons.
 

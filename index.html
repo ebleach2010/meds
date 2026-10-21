@@ -100,12 +100,12 @@
   <section class="card">
     <div class="stats">
       <div class="stat"><div class="v" id="s-left">–</div><div class="l">mg left</div></div>
-      <div class="stat"><div class="v" id="s-diff">–</div><div class="l">mg vs. pace</div></div>
-      <div class="stat"><div class="v" id="s-day0">–</div><div class="l">days to appt.</div></div>
+      <div class="stat"><div class="v" id="s-diff">–</div><div class="l">mg vs. allowance</div></div>
+      <div class="stat"><div class="v" id="s-day0">–</div><div class="l">days left</div></div>
     </div>
     <div class="chart-wrap"><svg id="chart" role="img" aria-label="mg left to take over time"></svg></div>
     <div class="legend">
-      <span><span class="sw" style="background:var(--red)"></span>Allotted pace</span>
+      <span><span class="sw" style="background:var(--red)"></span>Daily allowance</span>
       <span><span class="sw" style="background:var(--yellow)"></span>Actually left</span>
     </div>
     <p class="summary" id="summary"></p>
@@ -234,11 +234,17 @@
       .sort((a, b) => a.date - b.date);
     const counted = doses.filter(d => d.date >= start);
 
-    // Red: the period's total allotment, spent evenly down to 0 at the appointment.
+    // Red: what's left of the period's total if you take exactly the daily
+    // allotment. Each calendar day's full allotment counts as soon as the day
+    // starts, so the gap to the yellow line moves in whole doses.
     const total = s.mgPerDay * wallDays(start, end);
-    const red = [[startT, total], [endT, 0]];
-    const frac = Math.min(Math.max(0, nowT - startT), endT - startT) / (endT - startT);
-    const expected = total * (1 - frac);
+    const red = [[startT, total]];
+    for (let k = 0, day = new Date(start); day < end; k++, day.setDate(day.getDate() + 1)) {
+      red.push([day.getTime(), total - s.mgPerDay * k], [day.getTime(), Math.max(0, total - s.mgPerDay * (k + 1))]);
+    }
+    red.push([endT, 0]);
+    const daysStarted = now < start ? 0 : Math.floor(wallDays(start, now)) + 1;
+    const expected = Math.max(0, total - s.mgPerDay * daysStarted);
 
     // Yellow: what's actually left of the total, stepping down at each dose.
     const yellow = [[startT, total]];
@@ -250,14 +256,14 @@
     }
     const taken = total - cur;
     const remaining = cur;
-    const daysLeft = Math.max(0, wallDays(now, end));
+    const daysLeft = Math.max(0, Math.ceil(wallDays(now, end))); // counting today
     return { s, start, end, now, doses, counted, red, yellow, total, taken, remaining, expected, daysLeft };
   }
 
   function render() {
     const m = model();
     document.getElementById('s-left').textContent = fmt(m.remaining);
-    const diff = Math.round(m.remaining - m.expected); // + means more left than pace
+    const diff = Math.round(m.remaining - m.expected); // + means allowance left through today
     const diffEl = document.getElementById('s-diff');
     diffEl.textContent = (diff > 0 ? '+' : '') + fmt(diff);
     diffEl.style.color = diff === 0 ? '' : diff > 0 ? 'var(--good)' : 'var(--bad)';
@@ -265,22 +271,30 @@
 
     const sum = document.getElementById('summary');
     const appt = fmtDate(m.end);
-    let pace;
-    if (diff === 0) pace = `You're right on pace.`;
-    else if (diff < 0) pace = `You've taken <b class="bad">${fmt(-diff)} mg more</b> than your allotment so far.`;
-    else pace = `You've taken <b class="good">${fmt(diff)} mg less</b> than your allotment so far.`;
-    let plan;
+    const doses = n => { const k = n / 15; return Number.isInteger(k) ? ` (${k} × 15 mg)` : ''; };
+    let pace, plan;
     if (m.daysLeft <= 0) {
-      plan = `Your appointment was <b>${appt}</b>.`;
-    } else if (m.remaining < 0) {
-      plan = `You're <b class="bad">${fmt(-m.remaining)} mg over</b> your total for this period, with ${fmt(m.daysLeft)} days to your appointment on <b>${appt}</b>.`;
+      pace = `Your target date was <b>${appt}</b>.`;
+      plan = diff === 0 ? `You landed exactly on ${fmt(m.s.mgPerDay)} mg/day.` :
+        diff < 0 ? `You finished <b class="bad">${fmt(-diff)} mg over</b>.` : `You finished <b class="good">${fmt(diff)} mg under</b>.`;
+    } else if (diff === 0) {
+      pace = `You're exactly on ${fmt(m.s.mgPerDay)} mg/day through today.`;
+      plan = `Keep taking ${fmt(m.s.mgPerDay)} mg a day to land on target by <b>${appt}</b>.`;
+    } else if (diff < 0) {
+      pace = `You're <b class="bad">${fmt(-diff)} mg${doses(-diff)} over</b> your allowance through today.`;
+      plan = m.daysLeft > 1
+        ? `To average ${fmt(m.s.mgPerDay)} mg/day by <b>${appt}</b>, take ${fmt(-diff)} mg less over the next ${m.daysLeft - 1} days.`
+        : `Today is the last day before <b>${appt}</b>.`;
     } else {
-      plan = `To average ${fmt(m.s.mgPerDay)} mg/day by <b>${appt}</b>, you have <b>${fmt(m.remaining)} mg</b> left, about <b>${fmt(m.remaining / m.daysLeft)} mg/day</b> from here.`;
+      pace = `You have <b class="good">${fmt(diff)} mg${doses(diff)} left</b> in your allowance through today.`;
+      plan = m.daysLeft > 1
+        ? `That plus ${fmt(m.s.mgPerDay)} mg a day after today lands you on target by <b>${appt}</b>.`
+        : `Today is the last day before <b>${appt}</b>.`;
     }
     sum.innerHTML = `${pace} ${plan}`;
 
     document.getElementById('sched-note').textContent =
-      `Allotment: ${fmt(m.s.mgPerDay)} mg/day from ${fmtDate(m.start)} to ${appt} = ${fmt(m.total)} mg total. ${fmt(m.taken)} mg taken.`;
+      `${fmt(m.s.mgPerDay)} mg/day from ${fmtDate(m.start)} to ${appt} = ${fmt(m.total)} mg total. ${fmt(m.taken)} mg taken, ${fmt(m.remaining)} mg left.`;
 
     renderChart(m);
     renderHistory(m);
