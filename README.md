@@ -12,6 +12,8 @@ Your total for the period is the allotted mg/day × the days from "Counting from
 
 History is one list of every dose with its date and time, newest first. The yellow line under the chart shows the time since the last logged dose.
 
+The page ends with a line like "Build 6 · Home Screen app · 12 doses saved on this device". The Safari tab and the Home Screen app each keep their own saved doses; use Export/Import backup to move them.
+
 Settings: counting-from date, allotted mg/day, appointment. To log a dose, set the date and time (or tap Now), pick 15 mg or 30 mg, then tap Log dose. "Export CSV" under History downloads every dose with its date and time, plus each refill and target end date. Changing "Counting from" counts as a refill and keeps the previous period in that history.
 
 ## Using it on an iPhone

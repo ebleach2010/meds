@@ -137,7 +137,7 @@
   </section>
 
   <section class="card">
-    <h2>History</h2>
+    <h2 id="history-h">History</h2>
     <div id="history"></div>
     <div class="row">
       <button type="button" id="b-csv">Export CSV</button>
@@ -164,10 +164,12 @@
       </div>
     </details>
   </section>
+  <p class="note" id="footer" style="text-align:center"></p>
 </main>
 
 <script>
 (function () {
+  const BUILD = '2026-10-21-6';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -317,6 +319,11 @@
 
     renderChart(m);
     renderHistory(m);
+
+    const n = m.doses.length;
+    document.getElementById('history-h').textContent = `History · ${n} dose${n === 1 ? '' : 's'}`;
+    document.getElementById('footer').textContent =
+      `Build ${BUILD.split("-").pop()} · ${navigator.standalone ? 'Home Screen app' : 'Safari tab'} · ${n} dose${n === 1 ? '' : 's'} saved on this device`;
   }
 
   function renderChart(m) {
@@ -513,7 +520,6 @@
   // Home-screen apps can open a cached copy of this page for a while after
   // an update. On open and on return to the app, fetch the live page past
   // the cache and reload if its BUILD differs.
-  const BUILD = '2026-10-21-5';
   async function checkForUpdate() {
     try {
       const res = await fetch(location.pathname + '?check=' + Date.now(), { cache: 'no-store' });
