@@ -169,7 +169,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-21-6';
+  const BUILD = '2026-10-21-7';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -419,8 +419,11 @@
 
   // ---- events ----
   const timeInput = document.getElementById('f-time');
-  const setNow = () => { timeInput.value = toLocalInput(new Date()); };
+  let timeEdited = false; // true once you pick a time yourself
+  const setNow = () => { timeEdited = false; timeInput.value = toLocalInput(new Date()); };
+  const followClock = () => { if (!timeEdited) timeInput.value = toLocalInput(new Date()); };
   setNow();
+  timeInput.addEventListener('input', () => { timeEdited = true; });
   document.getElementById('b-now').addEventListener('click', setNow);
 
   let doseMg = 15;
@@ -433,6 +436,7 @@
 
   document.getElementById('log-form').addEventListener('submit', e => {
     e.preventDefault();
+    followClock(); // an untouched field logs the moment you tap, not when the app was opened
     if (!timeInput.value) return;
     const when = parseLocal(timeInput.value);
     state.doses.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t: timeInput.value, mg: doseMg });
@@ -464,7 +468,16 @@
     document.getElementById('settings').open = false;
   });
 
-  function download(text, type, name) {
+  async function download(text, type, name) {
+    try {
+      const file = new File([text], name, { type });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: name });
+        return;
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') return; // you closed the share sheet
+    }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([text], { type }));
     a.download = name;
@@ -514,8 +527,9 @@
   window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 100); });
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', render);
   // Refresh the "now" position if the app stays open.
-  setInterval(render, 60000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+  setInterval(() => { followClock(); render(); }, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { followClock(); render(); } });
+  window.addEventListener('pageshow', () => { followClock(); render(); });
 
   // Home-screen apps can open a cached copy of this page for a while after
   // an update. On open and on return to the app, fetch the live page past
