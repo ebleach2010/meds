@@ -169,8 +169,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-21-8';
-  const PILL_MG = 15;
+  const BUILD = '2026-10-21-9';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -275,10 +274,9 @@
     return { s, start, end, now, doses, counted, red, yellow, total, taken, remaining, expected, daysLeft };
   }
 
-  // Under the allowance = + (extra pills left to take today), over = - (deficit).
-  // Doses are 15 mg pills, so the gap in pills is the gap in mg / 15.
-  function signedPills(mg) {
-    const n = Math.round(mg / PILL_MG);
+  // Under the allowance = + (extra mg left to take today), over = - (deficit).
+  function signedMg(mg) {
+    const n = Math.round(mg);
     return n > 0 ? `+${n}` : n < 0 ? `\u2212${-n}` : '0';
   }
 
@@ -287,9 +285,8 @@
     document.getElementById('s-left').textContent = fmt(m.remaining);
     const diff = Math.round(m.remaining - m.expected); // + means allowance left through today
     const diffEl = document.getElementById('s-diff');
-    const pillDiff = signedPills(diff);
-    diffEl.textContent = pillDiff;
-    document.getElementById('s-diff-l').textContent = diff === 0 ? 'on allowance' : diff > 0 ? 'pills extra' : 'pills deficit';
+    diffEl.textContent = signedMg(diff);
+    document.getElementById('s-diff-l').textContent = diff === 0 ? 'on allowance' : diff > 0 ? 'mg extra' : 'mg deficit';
     diffEl.style.color = diff === 0 ? '' : diff > 0 ? 'var(--good)' : 'var(--bad)';
     document.getElementById('s-day0').textContent = fmt(m.daysLeft);
 
@@ -399,7 +396,7 @@
     out += `<circle cx="${nx}" cy="${ey}" r="4" fill="${c('--red')}" />`;
     out += `<circle cx="${nx}" cy="${ay}" r="4.5" fill="${c('--yellow')}" stroke="${c('--card')}" stroke-width="1.5" />`;
     const diff = Math.round(m.remaining - m.expected);
-    const lbl = signedPills(diff);
+    const lbl = signedMg(diff);
     const lx = nx + 8 > W - 50 ? nx - 8 : nx + 8;
     out += `<text x="${lx}" y="${(ey + ay) / 2 + 4}" text-anchor="${lx < nx ? 'end' : 'start'}" font-size="12" font-weight="700" fill="${c('--text')}">${lbl}</text>`;
 
