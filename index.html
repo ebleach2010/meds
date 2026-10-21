@@ -131,7 +131,7 @@
     <h2>History</h2>
     <div id="history"></div>
     <div class="row">
-      <button type="button" id="b-csv">Export CSV (daily totals)</button>
+      <button type="button" id="b-csv">Export CSV</button>
     </div>
   </section>
 
@@ -436,6 +436,8 @@
       alert('Fill in every field, with the appointment after "Counting from".');
       return;
     }
+    // A new "Counting from" date is a refill: keep the old period for the CSV.
+    if (next.start !== state.settings.start) state.history = [...(state.history || []), state.settings];
     state.settings = next;
     save(); render(); renderSettings();
     document.getElementById('settings').open = false;
@@ -454,19 +456,19 @@
     download(JSON.stringify(state, null, 2), 'application/json', `pill-tracker-${today()}.json`);
   });
 
-  // One row per calendar day, from the earlier of the start date or first
-  // dose through today, with 0 for days nothing was logged.
+  // Every dose with its time, plus a row for each refill (start of a
+  // period) and each period's target end date, in time order.
   document.getElementById('b-csv').addEventListener('click', () => {
-    const totals = new Map();
-    for (const d of state.doses) totals.set(d.t.slice(0, 10), (totals.get(d.t.slice(0, 10)) || 0) + d.mg);
-    const first = [state.settings.start.slice(0, 10), ...totals.keys()].sort()[0];
-    const last = [today(), ...totals.keys()].sort().pop();
-    const rows = ['Date,Total mg'];
-    for (const day = parseLocal(first); toLocalInput(day).slice(0, 10) <= last; day.setDate(day.getDate() + 1)) {
-      const k = toLocalInput(day).slice(0, 10);
-      rows.push(`${k},${fmt(totals.get(k) || 0)}`);
+    const rows = [];
+    for (const p of [...(state.history || []), state.settings]) {
+      rows.push([p.start, 'Refill / start', '', `${fmt(p.mgPerDay)} mg/day allotment; target end ${p.end.replace('T', ' ')}`]);
+      rows.push([p.end, 'Target end', '', '']);
     }
-    download(rows.join('\n') + '\n', 'text/csv', `pill-tracker-daily-${today()}.csv`);
+    for (const d of state.doses) rows.push([d.t, 'Dose', fmt(d.mg), '']);
+    rows.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+    const csv = ['Date,Time,Event,mg,Notes', ...rows.map(([t, ev, mg, note]) =>
+      [t.slice(0, 10), t.slice(11, 16), ev, mg, note].map(v => /[",]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v).join(','))];
+    download(csv.join('\n') + '\n', 'text/csv', `pill-tracker-${today()}.csv`);
   });
   document.getElementById('b-import').addEventListener('click', () => document.getElementById('f-import').click());
   document.getElementById('f-import').addEventListener('change', async e => {
@@ -497,7 +499,7 @@
   // Home-screen apps can open a cached copy of this page for a while after
   // an update. On open and on return to the app, fetch the live page past
   // the cache and reload if its BUILD differs.
-  const BUILD = '2026-10-21-1';
+  const BUILD = '2026-10-21-2';
   async function checkForUpdate() {
     try {
       const res = await fetch(location.pathname + '?check=' + Date.now(), { cache: 'no-store' });
