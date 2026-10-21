@@ -8,7 +8,7 @@ Your total for the period is the allotted mg/day × the days from "Counting from
 
 - **Red line:** what's left of that total if you take exactly the daily allotment. Each calendar day's full allotment counts as soon as the day starts, so the line steps down once a day.
 - **Yellow line:** what you've actually got left, dropping at each logged dose.
-- At "now", the gap is labeled in mg: `+` means allowance left through today, `−` means over it. With 15 mg doses it moves in 15 mg steps.
+- At "now", the gap is labeled in pills (15 mg each): `+2` means 2 pills of allowance still left through today ("pills extra"), `−1` means 1 pill over ("pills deficit").
 
 History is one list of every dose with its date and time, newest first. The yellow line under the chart shows the time since the last logged dose.
 
