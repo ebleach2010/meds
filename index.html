@@ -494,6 +494,20 @@
   setInterval(render, 60000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
 
+  // Home-screen apps can open a cached copy of this page for a while after
+  // an update. On open and on return to the app, fetch the live page past
+  // the cache and reload if its BUILD differs.
+  const BUILD = '2026-10-21-1';
+  async function checkForUpdate() {
+    try {
+      const res = await fetch(location.pathname + '?check=' + Date.now(), { cache: 'no-store' });
+      const live = (await res.text()).match(/const BUILD = '([^']+)'/)?.[1];
+      if (live && live !== BUILD) location.replace(location.pathname + '?v=' + live);
+    } catch (e) {}
+  }
+  checkForUpdate();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
+
   renderSettings();
   render();
 })();
