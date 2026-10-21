@@ -1,15 +1,17 @@
 # Pill Tracker
 
-A single-page web app for tracking pill doses against a daily allotment. No build step, no server, no dependencies: open `index.html` in any browser.
+A single-page web app for tracking doses against a daily mg allotment. No build step, no server, no dependencies: open `index.html` in any browser.
 
 ## What it shows
 
-- **Red line:** the allotted pace, running straight from the bottle count to what should be left at your appointment (the end point).
-- **Yellow line:** pills actually left, dropping at each logged dose.
-- At "now", the gap between the two is labeled: `+` means more pills left than the allotment says, `−` means fewer.
-- The summary says how many more pills you can take, and the average mg/day that works out to, to land on the target count at the appointment, however unevenly you've taken them so far.
+Your total for the period is the allotted mg/day × the days from "Counting from" to your appointment.
 
-Settings: pills in bottle, mg per pill, counting-from date, allotted mg/day, appointment. On a refill, set "Counting from" to now and enter what's in the bottle; earlier doses stay in the history but stop counting.
+- **Red line:** that total spent evenly, reaching 0 at the appointment.
+- **Yellow line:** what you've actually got left, dropping at each logged dose.
+- At "now", the gap between the two is labeled in mg: `+` means you've taken less than the allotment so far, `−` means more.
+- The summary says how many mg are left before the appointment and the mg/day average that works out to, however unevenly you've taken doses so far.
+
+Settings: counting-from date, allotted mg/day, appointment. Doses are logged with 15 mg / 30 mg buttons.
 
 ## Using it on an iPhone
 
