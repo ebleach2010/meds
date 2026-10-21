@@ -90,9 +90,6 @@
   details summary::after { content: " ▸"; color: var(--muted); }
   details[open] summary::after { content: " ▾"; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-  .fill { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; }
-  .fill-h { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 600; margin-bottom: 6px; min-height: 36px; }
-  .fill-h button { min-height: 36px; padding: 0 10px; color: var(--muted); }
   .empty { color: var(--muted); font-size: 14px; }
 </style>
 </head>
@@ -104,11 +101,11 @@
     <div class="stats">
       <div class="stat"><div class="v" id="s-left">–</div><div class="l">pills left</div></div>
       <div class="stat"><div class="v" id="s-diff">–</div><div class="l">vs. pace</div></div>
-      <div class="stat"><div class="v" id="s-day0">–</div><div class="l">days to day 0</div></div>
+      <div class="stat"><div class="v" id="s-day0">–</div><div class="l">days to appt.</div></div>
     </div>
     <div class="chart-wrap"><svg id="chart" role="img" aria-label="Pills remaining over time"></svg></div>
     <div class="legend">
-      <span><span class="sw" style="background:var(--red)"></span>Allotted pace to day 0</span>
+      <span><span class="sw" style="background:var(--red)"></span>Allotted pace</span>
       <span><span class="sw" style="background:var(--yellow)"></span>Pills actually left</span>
     </div>
     <p class="summary" id="summary"></p>
@@ -138,13 +135,17 @@
   <section class="card">
     <details id="settings">
       <summary>Prescription &amp; settings</summary>
-      <div style="margin-top:10px"><label for="s-mg">mg per pill</label><input type="number" id="s-mg" min="0.1" step="any"></div>
-      <div id="fills"></div>
+      <div class="grid2">
+        <div><label for="s-pills">Pills in bottle</label><input type="number" id="s-pills" min="1" step="any"></div>
+        <div><label for="s-mg">mg per pill</label><input type="number" id="s-mg" min="0.1" step="any"></div>
+      </div>
+      <div style="margin-top:8px"><label for="s-start">Counting from</label><input type="datetime-local" id="s-start"></div>
+      <div style="margin-top:8px"><label for="s-rate">Allotted mg per day</label><input type="number" id="s-rate" min="0.1" step="any"></div>
+      <div style="margin-top:8px"><label for="s-end">Appointment (end point)</label><input type="datetime-local" id="s-end"></div>
       <div class="row">
-        <button type="button" id="b-add-fill">+ Add refill / dose change</button>
         <button type="button" class="primary" id="b-save">Save</button>
       </div>
-      <p class="note">Each entry adds its pills to the bottle on that date and sets the daily allotment from then on. For a dose change with no new pills, add an entry with 0 pills.</p>
+      <p class="note">The red line runs from the bottle count to what should be left at your appointment at the allotted rate. On a refill, set "Counting from" to now and enter what's in the bottle; doses before that date stop counting.</p>
       <div class="row">
         <button type="button" id="b-export">Export backup</button>
         <button type="button" id="b-import">Import backup</button>
@@ -164,7 +165,10 @@
   const DEFAULTS = {
     settings: {
       mgPerPill: 15,
-      fills: [{ t: '2026-10-19T00:00', pills: 70, mgPerDay: 60 }]
+      pills: 70,
+      start: '2026-10-19T00:00',
+      mgPerDay: 60,
+      end: '2026-11-05T12:00'
     },
     // Pills already taken as of 10/20 — edit or delete if the time is off.
     doses: [{ id: 'seed', t: '2026-10-20T08:00', pills: 5 }]
@@ -179,13 +183,16 @@
     } catch (e) {}
     return JSON.parse(JSON.stringify(DEFAULTS));
   }
-  // The first version stored a stepped taper; it's replaced by the flat
-  // 60 mg/day allotment, keeping the original dispense date and count.
+  // Older versions stored a stepped taper (startCount/phases) or a list of
+  // fills; both become one bottle count, allotment and end point.
   function migrate(s) {
     const o = s.settings;
-    if (!o.fills) {
-      s.settings = { mgPerPill: o.mgPerPill, fills: [{ t: o.start, pills: o.startCount, mgPerDay: 60 }] };
-    }
+    if (o.pills != null && o.end) return s;
+    const first = o.fills ? o.fills[0] : { t: o.start, pills: o.startCount, mgPerDay: 60 };
+    const mgPerDay = o.fills ? o.fills[o.fills.length - 1].mgPerDay : 60;
+    const days = first.pills / (mgPerDay / o.mgPerPill);
+    const end = toLocalInput(new Date(parseLocal(first.t).getTime() + days * DAY));
+    s.settings = { mgPerPill: o.mgPerPill, pills: first.pills, start: first.t, mgPerDay, end };
     return s;
   }
   function save() {
@@ -209,67 +216,38 @@
 
   function model() {
     const s = state.settings;
-    const ppd = f => f.mgPerDay / s.mgPerPill; // pills per day
-    const now = new Date();
-    const fills = s.fills
-      .map(f => ({ ...f, date: parseLocal(f.t) }))
-      .sort((a, b) => a.date - b.date);
+    const rate = s.mgPerDay / s.mgPerPill; // allotted pills per day
+    const now = new Date(), nowT = now.getTime();
+    const start = parseLocal(s.start), startT = start.getTime();
+    const end = parseLocal(s.end), endT = end.getTime();
     const doses = state.doses
       .map(d => ({ ...d, date: parseLocal(d.t) }))
       .sort((a, b) => a.date - b.date);
-    const start = fills[0].date;
+    const counted = doses.filter(d => d.date >= start);
 
-    // Red: each fill adds its pills, then the count drains at that fill's allotment.
-    const red = [];
-    let level = 0;
-    fills.forEach((f, i) => {
-      const t = f.date.getTime();
-      if (i) {
-        const prev = fills[i - 1], pt = prev.date.getTime();
-        const empty = pt + level / ppd(prev) * DAY;
-        if (empty < t) { red.push([empty, 0]); level = 0; }
-        else level -= ppd(prev) * (t - pt) / DAY;
-        red.push([t, level]);
-      }
-      level += f.pills;
-      red.push([t, level]);
-    });
-    const last = fills[fills.length - 1];
-    const runOut = new Date(last.date.getTime() + level / ppd(last) * DAY);
-    red.push([runOut.getTime(), 0]);
+    // Red: straight from the bottle count to the target left at the appointment.
+    const target = s.pills - rate * (endT - startT) / DAY;
+    const red = [[startT, s.pills]];
+    if (target < 0) red.push([startT + s.pills / rate * DAY, 0], [endT, 0]);
+    else red.push([endT, target]);
+    const elapsed = Math.min(Math.max(0, nowT - startT), endT - startT) / DAY;
+    const expected = Math.max(0, s.pills - rate * elapsed);
 
-    // Yellow: fills add pills, doses remove them.
-    const events = [
-      ...fills.slice(1).filter(f => f.date <= now).map(f => [f.date.getTime(), f.pills]),
-      ...doses.map(d => [d.date.getTime(), -d.pills])
-    ].sort((a, b) => a[0] - b[0]);
-    const yellow = [[start.getTime(), fills[0].pills]];
-    let cur = fills[0].pills;
-    for (const [t, delta] of events) {
-      const tt = Math.max(start.getTime(), t);
-      yellow.push([tt, cur]);
-      cur += delta;
-      yellow.push([tt, cur]);
+    // Yellow: bottle count, stepping down at each dose.
+    const yellow = [[startT, s.pills]];
+    let cur = s.pills;
+    for (const d of counted) {
+      yellow.push([d.date.getTime(), cur]);
+      cur -= d.pills;
+      yellow.push([d.date.getTime(), cur]);
     }
+    const taken = s.pills - cur;
+    const remaining = cur;
 
-    const nowT = now.getTime();
-    const dispensed = fills.filter(f => f.date <= now || f === fills[0]).reduce((a, f) => a + f.pills, 0);
-    const taken = doses.reduce((a, d) => a + d.pills, 0);
-    const remaining = dispensed - taken;
-    const expected = redAt(red, nowT);
-    const current = [...fills].reverse().find(f => f.date <= now) || fills[0];
-    const rate = ppd(current);
-    const yourRunOut = new Date(nowT + Math.max(0, remaining) / rate * DAY);
-    return { s, rate, current, start, runOut, now, doses, red, yellow, dispensed, taken, remaining, expected, yourRunOut };
-  }
-
-  function redAt(red, t) {
-    if (t <= red[0][0]) return red[0][1];
-    let i = red.length - 1;
-    while (red[i][0] > t) i--;
-    if (i === red.length - 1) return 0;
-    const [t0, v0] = red[i], [t1, v1] = red[i + 1];
-    return t1 === t0 ? v1 : v0 + (v1 - v0) * (t - t0) / (t1 - t0);
+    // What you can still take and land on target at the appointment.
+    const daysLeft = Math.max(0, (endT - nowT) / DAY);
+    const budget = remaining - Math.max(0, target);
+    return { s, rate, start, end, now, doses, counted, red, yellow, target, taken, remaining, expected, daysLeft, budget };
   }
 
   function render() {
@@ -279,23 +257,29 @@
     const diffEl = document.getElementById('s-diff');
     diffEl.textContent = (diff > 0 ? '+' : '') + fmt(diff);
     diffEl.style.color = diff === 0 ? '' : diff > 0 ? 'var(--good)' : 'var(--bad)';
-    document.getElementById('s-day0').textContent = fmt(Math.max(0, (m.runOut - m.now) / DAY));
+    document.getElementById('s-day0').textContent = fmt(m.daysLeft);
 
     const sum = document.getElementById('summary');
-    const abs = fmt(Math.abs(diff));
-    const day0 = fmtDate(m.runOut);
-    const pl = Math.abs(diff) === 1 ? 'pill' : 'pills';
-    const rate = fmt(m.rate, 2);
-    if (diff === 0) {
-      sum.innerHTML = `You're right on pace. Day 0 is <b>${day0}</b>.`;
-    } else if (diff < 0) {
-      sum.innerHTML = `You've taken <b class="bad">${abs} more</b> ${pl} than your allotment. At ${rate}/day, what's left runs out <b>${fmtDate(m.yourRunOut)}</b> vs. day 0 on <b>${day0}</b>.`;
+    const appt = fmtDate(m.end);
+    const tgt = fmt(Math.max(0, m.target));
+    const pills = (n, w = '') => `${fmt(n)} ${w}${w && ' '}pill${Math.round(n) === 1 ? '' : 's'}`;
+    let pace;
+    if (diff === 0) pace = `You're right on pace.`;
+    else if (diff < 0) pace = `You've taken <b class="bad">${pills(-diff, 'more')}</b> than your allotment so far.`;
+    else pace = `You've taken <b class="good">${pills(diff, 'fewer')}</b> than your allotment so far.`;
+    let plan;
+    if (m.daysLeft <= 0) {
+      plan = `Your appointment was <b>${appt}</b>: target was ${tgt} left, you have ${fmt(m.remaining)}.`;
+    } else if (m.budget < 0) {
+      plan = `To have ${tgt} left at your appointment on <b>${appt}</b>, you're already <b class="bad">${pills(-m.budget)} over</b>.`;
     } else {
-      sum.innerHTML = `You've taken <b class="good">${abs} fewer</b> ${pl} than your allotment. At ${rate}/day, what's left lasts until <b>${fmtDate(m.yourRunOut)}</b> vs. day 0 on <b>${day0}</b>.`;
+      plan = `To have <b>${tgt} left</b> at your appointment on <b>${appt}</b>, you can take <b>${pills(m.budget, 'more')}</b>, about <b>${fmt(m.budget / m.daysLeft * m.s.mgPerPill)} mg/day</b>.`;
     }
+    sum.innerHTML = `${pace} ${plan}`;
 
-    document.getElementById('sched-note').textContent =
-      `Allotment: ${fmt(m.current.mgPerDay)} mg/day (${rate} pills). ${fmt(m.dispensed)} dispensed, ${fmt(m.taken)} taken.`;
+    let note = `Allotment: ${fmt(m.s.mgPerDay)} mg/day. ${fmt(m.s.pills)} in bottle from ${fmtDate(m.start)}, ${fmt(m.taken)} taken since.`;
+    if (m.target < 0) note += ` Heads up: at the allotment the bottle runs out ${pills(-m.target)} short of your appointment.`;
+    document.getElementById('sched-note').textContent = note;
 
     renderChart(m);
     renderHistory(m);
@@ -309,9 +293,9 @@
     const css = getComputedStyle(document.documentElement);
     const c = k => css.getPropertyValue(k).trim();
 
-    const lastDose = m.doses.length ? m.doses[m.doses.length - 1].date.getTime() : 0;
+    const lastDose = m.counted.length ? m.counted[m.counted.length - 1].date.getTime() : 0;
     const x0 = m.start.getTime();
-    const x1 = Math.max(m.runOut.getTime(), m.now.getTime(), lastDose) + 0.6 * DAY;
+    const x1 = Math.max(m.end.getTime(), m.now.getTime(), lastDose) + 0.6 * DAY;
     const yMax = Math.max(1, ...m.red.map(p => p[1]), ...m.yellow.map(p => p[1]));
     const X = t => pad.l + (t - x0) / (x1 - x0) * (W - pad.l - pad.r);
     const Y = v => pad.t + (1 - v / yMax) * (H - pad.t - pad.b);
@@ -340,16 +324,17 @@
     out += `<line x1="${nx}" x2="${nx}" y1="${pad.t}" y2="${H - pad.b}" stroke="${c('--muted')}" stroke-dasharray="3 4" opacity=".6" />`;
     out += `<text x="${nx + 4}" y="${pad.t + 10}" font-size="11" fill="${c('--muted')}">now</text>`;
 
-    // red: allotted pace to day 0
-    const rx = X(m.runOut.getTime());
+    // red: allotted pace to the appointment
+    const [ex, ev] = m.red[m.red.length - 1];
+    const rx = X(ex), ry = Y(ev);
     const rd = m.red.map(([t, v], i) => `${i ? 'L' : 'M'}${X(t)},${Y(v)}`).join(' ');
     out += `<path d="${rd}" fill="none" stroke="${c('--red')}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />`;
-    out += `<circle cx="${rx}" cy="${Y(0)}" r="4" fill="${c('--red')}" />`;
+    out += `<circle cx="${rx}" cy="${ry}" r="4" fill="${c('--red')}" />`;
     const anchor = rx > W - 90 ? 'end' : 'middle';
     const ax = anchor === 'end' ? rx - 6 : rx;
-    out += `<text x="${ax}" y="${Y(0) - 12}" text-anchor="${anchor}" font-size="12" font-weight="600" fill="${c('--red')}">Day 0 · ${m.runOut.getMonth() + 1}/${m.runOut.getDate()}</text>`;
+    out += `<text x="${ax}" y="${ry - 12}" text-anchor="${anchor}" font-size="12" font-weight="600" fill="${c('--red')}">Appt ${m.end.getMonth() + 1}/${m.end.getDate()} · ${fmt(Math.max(0, m.target))} left</text>`;
 
-    // yellow: actual pills left, stepping down at each dose and up at each refill
+    // yellow: actual pills left, stepping down at each dose
     let d = m.yellow.map(([t, v], i) => `${i ? 'L' : 'M'}${X(t)},${Y(Math.max(0, v))}`).join(' ');
     const lastY = m.yellow[m.yellow.length - 1];
     d += ` L${X(Math.max(m.now.getTime(), lastY[0]))},${Y(Math.max(0, lastY[1]))}`;
@@ -396,27 +381,12 @@
   // ---- settings UI ----
   function renderSettings() {
     const s = state.settings;
+    document.getElementById('s-pills').value = s.pills;
     document.getElementById('s-mg').value = s.mgPerPill;
+    document.getElementById('s-start').value = s.start;
+    document.getElementById('s-rate').value = s.mgPerDay;
+    document.getElementById('s-end').value = s.end;
     document.querySelectorAll('[data-pills][form]').forEach(b => { b.textContent = `${fmt(b.dataset.pills * s.mgPerPill)} mg`; });
-    renderFills([...s.fills].sort((a, b) => parseLocal(a.t) - parseLocal(b.t)));
-  }
-  function renderFills(fills) {
-    document.getElementById('fills').innerHTML = fills.map((f, i) => `
-      <div class="fill">
-        <div class="fill-h"><span>${i ? `Refill / change ${i}` : 'First dispensed'}</span>${i ? `<button type="button" data-rm-fill="${i}" aria-label="Remove">✕</button>` : ''}</div>
-        <input type="datetime-local" data-t value="${f.t}">
-        <div class="grid2">
-          <div><label>Pills added</label><input type="number" min="0" step="any" data-pills value="${f.pills}"></div>
-          <div><label>Allotted mg/day</label><input type="number" min="0.1" step="any" data-mg value="${f.mgPerDay}"></div>
-        </div>
-      </div>`).join('');
-  }
-  function readFills() {
-    return [...document.querySelectorAll('#fills .fill')].map(row => ({
-      t: row.querySelector('[data-t]').value,
-      pills: Number(row.querySelector('[data-pills]').value),
-      mgPerDay: Number(row.querySelector('[data-mg]').value)
-    }));
   }
 
   // ---- events ----
@@ -443,23 +413,14 @@
     }
   });
 
-  document.getElementById('b-add-fill').addEventListener('click', () => {
-    const fills = readFills();
-    renderFills([...fills, { t: toLocalInput(new Date()), pills: 0, mgPerDay: fills[fills.length - 1].mgPerDay }]);
-  });
-  document.getElementById('fills').addEventListener('click', e => {
-    const i = e.target.closest('[data-rm-fill]')?.dataset.rmFill;
-    if (i == null) return;
-    const f = readFills(); f.splice(Number(i), 1); renderFills(f);
-  });
   document.getElementById('b-save').addEventListener('click', () => {
-    const fills = readFills().sort((a, b) => parseLocal(a.t) - parseLocal(b.t));
-    const mgPerPill = Number(document.getElementById('s-mg').value);
-    if (!(mgPerPill > 0) || !(fills[0].pills > 0) || fills.some(f => !f.t || !(f.pills >= 0) || !(f.mgPerDay > 0))) {
-      alert('Each entry needs a date, pills (0 or more), and mg per day above 0. The first entry needs pills.');
+    const v = id => document.getElementById(id).value;
+    const next = { pills: Number(v('s-pills')), mgPerPill: Number(v('s-mg')), start: v('s-start'), mgPerDay: Number(v('s-rate')), end: v('s-end') };
+    if (!(next.pills > 0) || !(next.mgPerPill > 0) || !(next.mgPerDay > 0) || !next.start || !next.end || parseLocal(next.end) <= parseLocal(next.start)) {
+      alert('Fill in every field, with the appointment after "Counting from".');
       return;
     }
-    state.settings = { mgPerPill, fills };
+    state.settings = next;
     save(); render(); renderSettings();
     document.getElementById('settings').open = false;
   });

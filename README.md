@@ -1,14 +1,15 @@
 # Pill Tracker
 
-A single-page web app for tracking pill doses against a tapering prescription. No build step, no server, no dependencies: open `index.html` in any browser.
+A single-page web app for tracking pill doses against a daily allotment. No build step, no server, no dependencies: open `index.html` in any browser.
 
 ## What it shows
 
-- **Red line:** where you should be at your allotted mg/day, ending at 0 on "day 0". Each refill or dose change starts a new segment: the line jumps up by the pills added and slopes at the new allotment.
-- **Yellow line:** pills actually left, dropping at each logged dose and rising at each refill.
+- **Red line:** the allotted pace, running straight from the bottle count to what should be left at your appointment (the end point).
+- **Yellow line:** pills actually left, dropping at each logged dose.
 - At "now", the gap between the two is labeled: `+` means more pills left than the allotment says, `−` means fewer.
+- The summary says how many more pills you can take, and the average mg/day that works out to, to land on the target count at the appointment, however unevenly you've taken them so far.
 
-Current setup: 70 × 15 mg pills dispensed Oct 19, 2026 at 60 mg/day (4 pills/day, day 0 = Nov 5). Add refills and dose changes under **Prescription & settings**.
+Settings: pills in bottle, mg per pill, counting-from date, allotted mg/day, appointment. On a refill, set "Counting from" to now and enter what's in the bottle; earlier doses stay in the history but stop counting.
 
 ## Using it on an iPhone
 
