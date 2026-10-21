@@ -4,11 +4,11 @@ A single-page web app for tracking pill doses against a tapering prescription. N
 
 ## What it shows
 
-- **Red line:** the average pace from the dispensed count down to 0 ("day 0"). It's a straight line using total pills ÷ total days across the whole schedule, so it doesn't jump when the dose steps down.
-- **Yellow line:** pills actually left, dropping at each logged dose.
-- At "now", the gap between the two is labeled: `+` means more pills left than the average pace, `−` means fewer.
+- **Red line:** where you should be at your allotted mg/day, ending at 0 on "day 0". Each refill or dose change starts a new segment: the line jumps up by the pills added and slopes at the new allotment.
+- **Yellow line:** pills actually left, dropping at each logged dose and rising at each refill.
+- At "now", the gap between the two is labeled: `+` means more pills left than the allotment says, `−` means fewer.
 
-Default prescription: 70 × 15 mg pills dispensed Oct 19, 2026; 60 mg/day for 7 days, then 45 mg/day for 14 days (70 pills over 21 days ≈ 3.33 pills/day, day 0 = Nov 9). All of this is editable under **Prescription & settings**.
+Current setup: 70 × 15 mg pills dispensed Oct 19, 2026 at 60 mg/day (4 pills/day, day 0 = Nov 5). Add refills and dose changes under **Prescription & settings**.
 
 ## Using it on an iPhone
 
