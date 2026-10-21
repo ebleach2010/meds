@@ -81,9 +81,8 @@
     background: var(--card); color: var(--text); cursor: pointer;
   }
   button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); flex: 1; font-weight: 600; }
-  .day { margin-top: 10px; }
-  .day-h { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 4px; }
-  .dose { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; font-variant-numeric: tabular-nums; }
+  .dose { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .since { text-align: right; font-size: 16pt; font-weight: 600; color: var(--yellow); margin-top: 4px; }
   .dose button { min-height: 36px; padding: 0 10px; color: var(--muted); }
   details summary { cursor: pointer; font-weight: 600; list-style: none; }
   details summary::-webkit-details-marker { display: none; }
@@ -104,6 +103,7 @@
       <div class="stat"><div class="v" id="s-day0">–</div><div class="l">days left</div></div>
     </div>
     <div class="chart-wrap"><svg id="chart" role="img" aria-label="mg left to take over time"></svg></div>
+    <div class="since" id="since"></div>
     <div class="legend">
       <span><span class="sw" style="background:var(--red)"></span>Daily allowance</span>
       <span><span class="sw" style="background:var(--yellow)"></span>Actually left</span>
@@ -300,6 +300,12 @@
     document.getElementById('sched-note').textContent =
       `${fmt(m.s.mgPerDay)} mg/day from ${fmtDate(m.start)} to ${appt} = ${fmt(m.total)} mg total. ${fmt(m.taken)} mg taken, ${fmt(m.remaining)} mg left.`;
 
+    const last = m.doses[m.doses.length - 1];
+    const mins = last ? Math.max(0, Math.floor((m.now - last.date) / 60000)) : 0;
+    document.getElementById('since').textContent = last
+      ? `${Math.floor(mins / 60)}h ${mins % 60}m since last dose`
+      : 'No doses logged';
+
     renderChart(m);
     renderHistory(m);
   }
@@ -379,21 +385,10 @@
   function renderHistory(m) {
     const el = document.getElementById('history');
     if (!m.doses.length) { el.innerHTML = '<p class="empty">No doses logged yet.</p>'; return; }
-    const byDay = new Map();
-    for (const d of [...m.doses].reverse()) {
-      const k = d.date.toDateString();
-      if (!byDay.has(k)) byDay.set(k, []);
-      byDay.get(k).push(d);
-    }
     let html = '';
-    for (const [, list] of byDay) {
-      const mg = list.reduce((a, d) => a + d.mg, 0);
-      html += `<div class="day"><div class="day-h"><span>${fmtDate(list[0].date)}</span><span>${fmt(mg)} mg</span></div>`;
-      for (const d of list) {
-        html += `<div class="dose"><span>${fmtTime(d.date)} — ${fmt(d.mg)} mg</span>` +
-          `<button type="button" data-del="${d.id}" aria-label="Delete">✕</button></div>`;
-      }
-      html += '</div>';
+    for (const d of [...m.doses].reverse()) {
+      html += `<div class="dose"><span>${fmtDate(d.date)}, ${fmtTime(d.date)} — ${fmt(d.mg)} mg</span>` +
+        `<button type="button" data-del="${d.id}" aria-label="Delete">✕</button></div>`;
     }
     el.innerHTML = html;
   }
@@ -500,7 +495,7 @@
   // Home-screen apps can open a cached copy of this page for a while after
   // an update. On open and on return to the app, fetch the live page past
   // the cache and reload if its BUILD differs.
-  const BUILD = '2026-10-21-3';
+  const BUILD = '2026-10-21-4';
   async function checkForUpdate() {
     try {
       const res = await fetch(location.pathname + '?check=' + Date.now(), { cache: 'no-store' });
