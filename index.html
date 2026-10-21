@@ -130,6 +130,9 @@
   <section class="card">
     <h2>History</h2>
     <div id="history"></div>
+    <div class="row">
+      <button type="button" id="b-csv">Export CSV (daily totals)</button>
+    </div>
   </section>
 
   <section class="card">
@@ -438,13 +441,32 @@
     document.getElementById('settings').open = false;
   });
 
-  document.getElementById('b-export').addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  function download(text, type, name) {
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `pill-tracker-${toLocalInput(new Date()).slice(0, 10)}.json`;
+    a.href = URL.createObjectURL(new Blob([text], { type }));
+    a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  const today = () => toLocalInput(new Date()).slice(0, 10);
+
+  document.getElementById('b-export').addEventListener('click', () => {
+    download(JSON.stringify(state, null, 2), 'application/json', `pill-tracker-${today()}.json`);
+  });
+
+  // One row per calendar day, from the earlier of the start date or first
+  // dose through today, with 0 for days nothing was logged.
+  document.getElementById('b-csv').addEventListener('click', () => {
+    const totals = new Map();
+    for (const d of state.doses) totals.set(d.t.slice(0, 10), (totals.get(d.t.slice(0, 10)) || 0) + d.mg);
+    const first = [state.settings.start.slice(0, 10), ...totals.keys()].sort()[0];
+    const last = [today(), ...totals.keys()].sort().pop();
+    const rows = ['Date,Total mg'];
+    for (const day = parseLocal(first); toLocalInput(day).slice(0, 10) <= last; day.setDate(day.getDate() + 1)) {
+      const k = toLocalInput(day).slice(0, 10);
+      rows.push(`${k},${fmt(totals.get(k) || 0)}`);
+    }
+    download(rows.join('\n') + '\n', 'text/csv', `pill-tracker-daily-${today()}.csv`);
   });
   document.getElementById('b-import').addEventListener('click', () => document.getElementById('f-import').click());
   document.getElementById('f-import').addEventListener('change', async e => {

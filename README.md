@@ -10,7 +10,7 @@ Your total for the period is the allotted mg/day × the days from "Counting from
 - **Yellow line:** what you've actually got left, dropping at each logged dose.
 - At "now", the gap is labeled in mg: `+` means allowance left through today, `−` means over it. With 15 mg doses it moves in 15 mg steps.
 
-Settings: counting-from date, allotted mg/day, appointment. Doses are logged with 15 mg / 30 mg buttons.
+Settings: counting-from date, allotted mg/day, appointment. Doses are logged with 15 mg / 30 mg buttons. "Export CSV" under History downloads one row per day with the total mg taken.
 
 ## Using it on an iPhone
 
