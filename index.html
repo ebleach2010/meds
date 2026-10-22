@@ -256,7 +256,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-21-11';
+  const BUILD = '2026-10-22-12';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -378,7 +378,24 @@
       d.dayTotal = run;
     }
     const todayMg = doses.filter(d => dayKey(d.date) === dayKey(now) && d.date <= now).reduce((a, d) => a + d.mg, 0);
-    return { s, start, end, now, doses, counted, red, yellow, total, taken, remaining, expected, daysLeft, agitation, sleep, naps, todayMg };
+
+    // Balance (the surplus/deficit number): unused allowance from finished days
+    // is +, anything taken beyond the allowance is -. Today's unused allowance
+    // isn't counted until the day is over, so the number doesn't jump at midnight.
+    let balance;
+    if (now < start) balance = 0;
+    else if (now >= end) balance = total - taken;
+    else {
+      const k = Math.floor(wallDays(start, now)); // finished days
+      const dayStart = new Date(start); dayStart.setDate(dayStart.getDate() + k);
+      const allowedDone = Math.min(total, s.mgPerDay * k);
+      const takenBefore = counted.filter(d => d.date < dayStart).reduce((a, d) => a + d.mg, 0);
+      const takenToday = counted.filter(d => d.date >= dayStart).reduce((a, d) => a + d.mg, 0);
+      const todayAllowance = Math.min(s.mgPerDay, total - allowedDone);
+      balance = allowedDone - takenBefore - Math.max(0, takenToday - todayAllowance);
+    }
+    balance = Math.round(balance);
+    return { s, start, end, now, doses, counted, red, yellow, total, taken, remaining, expected, daysLeft, agitation, sleep, naps, todayMg, balance };
   }
 
   // Under the allowance = + (extra mg left to take today), over = - (deficit).
@@ -390,7 +407,7 @@
   function render() {
     const m = model();
     document.getElementById('s-left').textContent = fmt(m.remaining);
-    const diff = Math.round(m.remaining - m.expected); // + means allowance left through today
+    const diff = m.balance; // + unused allowance from finished days, - taken over allowance
     const diffEl = document.getElementById('s-diff');
     diffEl.textContent = signedMg(diff);
     document.getElementById('s-diff-l').textContent = diff === 0 ? 'on allowance' : diff > 0 ? 'mg extra' : 'mg deficit';
@@ -406,18 +423,14 @@
       plan = diff === 0 ? `You landed exactly on ${fmt(m.s.mgPerDay)} mg/day.` :
         diff < 0 ? `You finished <b class="bad">${fmt(-diff)} mg over</b>.` : `You finished <b class="good">${fmt(diff)} mg under</b>.`;
     } else if (diff === 0) {
-      pace = `You're exactly on ${fmt(m.s.mgPerDay)} mg/day through today.`;
-      plan = `Keep taking ${fmt(m.s.mgPerDay)} mg a day to land on target by <b>${appt}</b>.`;
+      pace = `You're exactly on track so far.`;
+      plan = `Keep to ${fmt(m.s.mgPerDay)} mg a day to land on target by <b>${appt}</b>.`;
     } else if (diff < 0) {
-      pace = `You're <b class="bad">${fmt(-diff)} mg${doses(-diff)} over</b> your allowance through today.`;
-      plan = m.daysLeft > 1
-        ? `To average ${fmt(m.s.mgPerDay)} mg/day by <b>${appt}</b>, take ${fmt(-diff)} mg less over the next ${m.daysLeft - 1} days.`
-        : `Today is the last day before <b>${appt}</b>.`;
+      pace = `You're <b class="bad">${fmt(-diff)} mg${doses(-diff)} over</b> your allowance so far.`;
+      plan = `To average ${fmt(m.s.mgPerDay)} mg/day by <b>${appt}</b>, take ${fmt(-diff)} mg less in total before then.`;
     } else {
-      pace = `You have <b class="good">${fmt(diff)} mg${doses(diff)} left</b> in your allowance through today.`;
-      plan = m.daysLeft > 1
-        ? `That plus ${fmt(m.s.mgPerDay)} mg a day after today lands you on target by <b>${appt}</b>.`
-        : `Today is the last day before <b>${appt}</b>.`;
+      pace = `You're <b class="good">${fmt(diff)} mg${doses(diff)} under</b> your allowance from earlier days.`;
+      plan = `That's ${fmt(diff)} mg you can still take on top of ${fmt(m.s.mgPerDay)} mg a day and land on target by <b>${appt}</b>.`;
     }
     sum.innerHTML = `${pace} ${plan}`;
 
@@ -546,7 +559,7 @@
     out += `<circle cx="${nx}" cy="${ey}" r="4" fill="${c('--red')}" />`;
     out += `<circle cx="${nx}" cy="${ay}" r="4.5" fill="${c('--yellow')}" stroke="${c('--card')}" stroke-width="1.5" />`;
     out += `</g>`;
-    const lbl = signedMg(Math.round(m.remaining - m.expected));
+    const lbl = signedMg(m.balance);
     const lx = nx + 8 > W - pad.r - 30 ? nx - 8 : nx + 8;
     const ly = Math.abs(ey - ay) < 16 ? Math.min(ey, ay) - 8 : (ey + ay) / 2 + 4;
     out += `<text x="${lx}" y="${ly}" text-anchor="${lx < nx ? 'end' : 'start'}" font-size="12" font-weight="700" fill="${c('--text')}">${lbl}</text>`;
