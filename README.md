@@ -8,7 +8,7 @@ Your total for the period is the allotted mg/day × the days from "Counting from
 
 - **Red line:** what's left of that total if you take exactly the daily allotment. Each calendar day's full allotment counts as soon as the day starts, so the line steps down once a day.
 - **Yellow line:** what you've actually got left, dropping at each logged dose.
-- At "now", the gap is labeled in mg: `+30` means 30 mg of allowance still left through today ("mg extra"), `−15` means 15 mg over ("mg deficit").
+- The surplus/deficit number counts finished days only: unused allowance from earlier days is `+` ("mg extra"), anything taken over the allowance (including going over 60 mg today) is `−` ("mg deficit"). Today's progress is the separate "Today: X mg of 60 mg" bar, so the number doesn't jump at midnight.
 
 The chart shows the last few days through now. Each dose is a yellow dot on the yellow line. A second scale on the right (0–5) carries **agitation** (purple dots joined by a line, 1 = calm, 5 = very agitated), **sleep** (green dots joined by a line, hours ÷ 2 so 10 hours sits at 5) and **naps** (light-blue dots, no line, just above the axis). Under the chart: time since the last dose and today's running total with a progress bar, e.g. "Today: 45 mg of 60 mg".
 
