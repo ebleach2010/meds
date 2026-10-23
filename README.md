@@ -4,11 +4,20 @@ A single-page web app for tracking doses against a daily mg allotment. No build 
 
 ## What it shows
 
-Your total for the period is the allotted mg/day × the days from "Counting from" to your appointment.
+Your total for the period is the allotted mg/day × the calendar days from "Counting from" to your appointment. Days run midnight to midnight.
 
-- **Red line:** what's left of that total if you take exactly the daily allotment. Each calendar day's full allotment counts as soon as the day starts, so the line steps down once a day.
+The top of the screen shows three numbers:
+- **mg left today:** today's allowance minus today's doses. It resets at midnight and turns into "mg over today" if you go past it.
+- **Balance (past days):** finished days only. Unused allowance is `+` ("mg extra"), anything over is `−` ("mg deficit").
+- **mg/day to target:** what to average from today on to land exactly on the total by the appointment.
+
+Doses logged with a future time don't count until that time arrives.
+
+- **Red line:** what's left of the total if you take exactly the daily allowance. It steps down once a day.
 - **Yellow line:** what you've actually got left, dropping at each logged dose.
-- The surplus/deficit number counts finished days only: unused allowance from earlier days is `+` ("mg extra"), anything taken over the allowance (including going over 60 mg today) is `−` ("mg deficit"). Today's progress is the separate "Today: X mg of 60 mg" bar, so the number doesn't jump at midnight.
+- **Balance bar:** a short bar on today's midnight line, between the red and yellow lines, labeled with the balance (e.g. "−75 mg"). Its length is the balance.
+
+The look is dark and neon whatever the phone's light/dark setting.
 
 The chart shows the last few days through now. Each dose is a yellow dot on the yellow line. A second scale on the right (0–5) carries **agitation** (purple dots joined by a line, 1 = calm, 5 = very agitated; the latest one carries a small note with the time since the dose before it, that dose's mg and the day's running total at that dose), **sleep** (green dots joined by a line, hours ÷ 2 so 10 hours sits at 5) and **naps** (light-blue dots, no line, just above the axis). Under the chart: time since the last dose and today's running total with a progress bar, e.g. "Today: 45 mg of 60 mg".
 

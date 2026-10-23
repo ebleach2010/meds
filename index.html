@@ -5,144 +5,152 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Pills">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.json">
 <title>Pill Tracker</title>
 <style>
+  /* Dark-first neon theme, used whatever the phone's light/dark setting. */
   :root {
-    --bg: #f2f2f7;
-    --card: #ffffff;
-    --text: #111114;
-    --muted: #6e6e76;
-    --line: #e6e6eb;
-    --grid: #efeff3;
-    --chip: #f0f0f4;
-    --accent: #2563eb;
-    --accent-text: #ffffff;
-    --red: #e5484d;
-    --yellow: #e0a100;
-    --good: #15803d;
-    --bad: #dc2626;
-    --purple: #7c3aed;
-    --green: #16a34a;
-    --nap: #38bdf8;
-    --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.04);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #000000;
-      --card: #1c1c1e;
-      --text: #f5f5f7;
-      --muted: #98989f;
-      --line: #2c2c2e;
-      --grid: #29292c;
-      --chip: #2c2c2e;
-      --accent: #3b82f6;
-      --accent-text: #ffffff;
-      --red: #ff6369;
-      --yellow: #ffcc33;
-      --good: #30d158;
-      --bad: #ff6b6b;
-      --purple: #bf9bff;
-      --green: #30d158;
-      --nap: #7dd3fc;
-      --shadow: none;
-    }
+    color-scheme: dark;
+    --bg: #000000;
+    --card: #0c0c0e;
+    --text: #f5f5f7;
+    --muted: #8a8a92;
+    --line: #1d1d21;
+    --grid: rgba(255,255,255,.07);
+    --chip: #18181b;
+    --accent: #00c805;
+    --accent-text: #000000;
+    --red: #ff3358;
+    --yellow: #ffd60a;
+    --good: #00c805;
+    --bad: #ff5000;
+    --purple: #b26bff;
+    --green: #00c805;
+    --nap: #00e5ff;
+    --shadow: none;
   }
   * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
+  html { -webkit-text-size-adjust: 100%; background: var(--bg); }
   body {
     margin: 0; background: var(--bg); color: var(--text);
     font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     -webkit-font-smoothing: antialiased;
   }
-  main { max-width: 560px; margin: 0 auto; padding: 12px 16px 24px; }
-  .top { display: flex; align-items: baseline; justify-content: space-between; margin: 8px 2px 14px; }
-  h1 { font-size: 28px; font-weight: 700; letter-spacing: -.02em; margin: 0; }
-  .top .date { color: var(--muted); font-size: 15px; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0; font-weight: 600; }
-  .card { background: var(--card); border-radius: 18px; padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow); }
-  .card-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  main { max-width: 560px; margin: 0 auto; padding: 14px 16px 32px; }
+  .top { display: flex; align-items: baseline; justify-content: space-between; margin: 6px 0 22px; }
+  h1 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; margin: 0; }
+  .top .date { color: var(--muted); font-size: 15px; font-weight: 500; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; font-weight: 600; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 18px 16px; margin-bottom: 14px; }
+  .card-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .num { font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
 
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); }
-  .stat { text-align: center; padding: 2px 4px; }
-  .stat + .stat { border-left: 1px solid var(--line); }
-  .stat .v { font-size: 28px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-  .stat .l { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  /* Hero: big "mg left today", then balance and mg/day side by side */
+  .hero { margin-bottom: 26px; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20px; }
+  .stat { min-width: 0; }
+  .stat .v { font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.03em; line-height: 1.05; }
+  .stat .l { font-size: 13px; color: var(--muted); margin-top: 4px; line-height: 1.3; }
+  .stat:first-child { grid-column: 1 / -1; padding-bottom: 18px; }
+  .stat:first-child .v { font-size: 68px; letter-spacing: -.045em; line-height: 1; }
+  .stat:first-child .l { font-size: 16px; font-weight: 500; margin-top: 6px; }
+  .stat:not(:first-child) { border-top: 1px solid var(--line); padding-top: 14px; }
+  .stat:not(:first-child) .v { font-size: 30px; }
+  .today-wrap { margin-top: 18px; }
+  .today { font-size: 14px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .bar { height: 4px; border-radius: 2px; background: var(--chip); margin-top: 8px; }
+  .bar > div { height: 100%; width: 0; background: var(--yellow); border-radius: 2px; transition: width .3s; box-shadow: 0 0 10px rgba(255,214,10,.55); }
+  .bar.over > div { background: var(--bad); box-shadow: 0 0 10px rgba(255,80,0,.6); }
 
-  svg { display: block; width: 100%; height: auto; }
-  .today-wrap { margin-top: 10px; }
-  .today { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .bar { height: 6px; border-radius: 3px; background: var(--chip); margin-top: 6px; overflow: hidden; }
-  .bar > div { height: 100%; width: 0; background: var(--yellow); border-radius: 3px; transition: width .2s; }
-  .bar.over > div { background: var(--bad); }
-  .since { text-align: right; font-size: 16pt; font-weight: 600; color: var(--yellow); margin-top: 6px; }
-  .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); background: var(--chip); border-radius: 999px; padding: 4px 10px; }
+  /* Chart: no card, straight on black */
+  .chart-wrap { margin: 0 0 30px; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  #chart text { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+  #chart .pulse { transform-box: fill-box; transform-origin: center; animation: pulse 2.4s ease-out infinite; }
+  @keyframes pulse { 0% { transform: scale(1); opacity: .9; } 70%, 100% { transform: scale(3.2); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { #chart .pulse { animation: none; opacity: 0; } }
+  .since { text-align: right; font-size: 16pt; font-weight: 600; color: var(--yellow); margin-top: 4px; letter-spacing: -.01em; font-variant-numeric: tabular-nums; text-shadow: 0 0 18px rgba(255,214,10,.35); }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 16px; }
+  .key { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .key i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; background: currentColor; box-shadow: 0 0 6px currentColor; }
+  .key i.pt { width: 8px; height: 8px; border-radius: 50%; }
+  .key i.ln-pt { position: relative; }
+  .key i.ln-pt::after { content: ""; position: absolute; left: 3px; top: -2.5px; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .key span { color: var(--muted); }
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }
 
-  .summary { font-size: 15px; margin: 0; }
+  .summary { font-size: 16px; line-height: 1.5; margin: 0; }
+  .summary b { font-weight: 700; }
   .summary b.good { color: var(--good); }
   .summary b.bad { color: var(--bad); }
-  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  .note { font-size: 13px; color: var(--muted); margin: 10px 0 0; line-height: 1.45; }
 
   label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
   input, button { font: inherit; color: inherit; }
   input[type=number], input[type=datetime-local] {
-    width: 100%; padding: 10px 12px; border-radius: 12px; border: 0;
-    background: var(--chip); color: var(--text); min-height: 46px; font-size: 16px;
-    -webkit-appearance: none; appearance: none;
+    width: 100%; padding: 10px 14px; border-radius: 14px; border: 0;
+    background: var(--chip); color: var(--text); min-height: 48px; font-size: 16px;
+    -webkit-appearance: none; appearance: none; outline: none;
   }
+  input:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
   button {
-    min-height: 44px; border-radius: 12px; border: 0; padding: 0 14px;
+    min-height: 44px; border-radius: 14px; border: 0; padding: 0 16px;
     background: var(--chip); color: var(--text); cursor: pointer; font-weight: 600;
-    -webkit-tap-highlight-color: transparent;
+    -webkit-tap-highlight-color: transparent; transition: background .15s, color .15s, box-shadow .15s, transform .1s;
   }
-  button:active { opacity: .7; }
-  button.primary { background: var(--accent); color: var(--accent-text); }
+  button:active { transform: scale(.97); opacity: .85; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: .35; cursor: default; transform: none; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-radius: 999px; }
+  button.primary:not(:disabled) { box-shadow: 0 0 24px rgba(0,200,5,.35); }
   button.link { background: none; color: var(--accent); padding: 0 4px; min-height: 32px; font-size: 15px; }
 
-  .tabs { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--chip); border-radius: 12px; padding: 3px; gap: 2px; }
-  .tabs button { min-height: 36px; background: none; font-size: 14px; color: var(--muted); border-radius: 9px; padding: 0; }
-  .tabs button[aria-pressed="true"] { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
-  .panel { margin-top: 14px; }
+  .tabs { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--chip); border-radius: 999px; padding: 4px; gap: 2px; }
+  .tabs button { min-height: 36px; background: none; font-size: 14px; color: var(--muted); border-radius: 999px; padding: 0; }
+  .tabs button[aria-pressed="true"] { background: rgba(0,200,5,.16); color: var(--accent); }
+  .panel { margin-top: 16px; }
   .opts { display: grid; gap: 8px; }
   .opts.two { grid-template-columns: 1fr 1fr; }
   .opts.five { grid-template-columns: repeat(5, 1fr); }
-  .opts button { min-height: 52px; font-size: 18px; background: var(--card); border: 1.5px solid var(--line); }
-  .opts button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-text); }
-  #ag-seg button[aria-pressed="true"] { border-color: var(--purple); background: var(--purple); color: #fff; }
-  .scale { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
-  .stepper { display: grid; grid-template-columns: 52px 1fr 52px; align-items: center; gap: 8px; }
-  .stepper button { min-height: 52px; font-size: 24px; padding: 0; }
-  .stepper output { text-align: center; font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .opts button { min-height: 54px; font-size: 18px; font-weight: 700; background: var(--chip); border: 1.5px solid transparent; font-variant-numeric: tabular-nums; }
+  .opts button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-text); box-shadow: 0 0 18px rgba(0,200,5,.35); }
+  #ag-seg button[aria-pressed="true"] { border-color: var(--purple); background: var(--purple); color: #000; box-shadow: 0 0 18px rgba(178,107,255,.45); }
+  .scale { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .stepper { display: grid; grid-template-columns: 54px 1fr 54px; align-items: center; gap: 8px; }
+  .stepper button { min-height: 54px; font-size: 24px; padding: 0; border-radius: 999px; }
+  .stepper output { text-align: center; font-size: 34px; font-weight: 700; letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--green); text-shadow: 0 0 16px rgba(0,200,5,.35); }
   .hint { font-size: 13px; color: var(--muted); text-align: center; margin-top: 6px; }
-  .nap-note { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; color: var(--muted); font-size: 15px; }
-  .time-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; margin-top: 14px; }
+  .nap-note { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 54px; color: var(--muted); font-size: 15px; }
+  .nap-note .dot { box-shadow: 0 0 8px var(--nap); }
+  .time-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; margin-top: 16px; }
   .time-row > div { min-width: 0; }
-  #b-log { width: 100%; margin-top: 10px; min-height: 54px; font-size: 17px; }
-  .logged { min-height: 18px; margin-top: 8px; font-size: 13px; color: var(--good); text-align: center; }
+  #b-now { min-height: 48px; border-radius: 14px; }
+  #b-log { width: 100%; margin-top: 12px; min-height: 54px; font-size: 17px; }
+  .logged { min-height: 18px; margin-top: 10px; font-size: 13px; color: var(--good); text-align: center; }
 
-  .item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .item { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
   .item:first-child { border-top: 0; }
-  .item .dot { width: 10px; height: 10px; }
+  .item .dot { width: 9px; height: 9px; box-shadow: 0 0 8px currentColor; }
   .item-main { flex: 1; min-width: 0; }
   .item-t { font-weight: 600; font-variant-numeric: tabular-nums; }
   .item-s { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .item .del { min-height: 32px; min-width: 32px; padding: 0; background: none; color: var(--muted); font-size: 18px; font-weight: 400; }
+  .item .del { min-height: 36px; min-width: 36px; padding: 0; background: none; color: #55555c; font-size: 15px; font-weight: 400; border-radius: 999px; }
   .empty { color: var(--muted); font-size: 14px; margin: 4px 0; }
 
-  details summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; }
+  details summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; align-items: center; }
   details summary::-webkit-details-marker { display: none; }
-  details summary::after { content: "›"; color: var(--muted); transform: rotate(90deg); transition: transform .15s; }
+  details summary::after { content: "›"; color: var(--muted); font-size: 20px; line-height: 1; transform: rotate(90deg); transition: transform .15s; }
   details[open] summary::after { transform: rotate(-90deg); }
-  .field { margin-top: 12px; }
-  .row { display: flex; gap: 8px; margin-top: 12px; }
+  .field { margin-top: 14px; }
+  .row { display: flex; gap: 8px; margin-top: 14px; }
   .row > button { flex: 1; }
-  .footer { font-size: 12px; color: var(--muted); text-align: center; margin: 4px 0 0; }
+  .footer { font-size: 12px; color: #55555c; text-align: center; margin: 8px 0 0; }
 </style>
 </head>
 <body>
@@ -152,27 +160,27 @@
     <span class="date" id="hdr-date"></span>
   </header>
 
-  <section class="card">
+  <section class="hero">
     <div class="stats">
-      <div class="stat"><div class="v" id="s-left">–</div><div class="l">mg left</div></div>
-      <div class="stat"><div class="v" id="s-diff">–</div><div class="l" id="s-diff-l">vs. allowance</div></div>
-      <div class="stat"><div class="v" id="s-day0">–</div><div class="l">days left</div></div>
+      <div class="stat"><div class="v" id="s-left">–</div><div class="l" id="s-left-l">mg left today</div></div>
+      <div class="stat"><div class="v" id="s-diff">–</div><div class="l" id="s-diff-l">balance</div></div>
+      <div class="stat"><div class="v" id="s-avg">–</div><div class="l">mg/day to target</div></div>
     </div>
-  </section>
-
-  <section class="card">
-    <svg id="chart" role="img" aria-label="Last few days: mg left, doses, agitation, sleep and naps"></svg>
-    <div class="since" id="since"></div>
     <div class="today-wrap">
       <div class="today" id="today"></div>
       <div class="bar" id="today-bar"><div></div></div>
     </div>
+  </section>
+
+  <section class="chart-wrap">
+    <svg id="chart" role="img" aria-label="Last few days: mg left, doses, agitation, sleep and naps"></svg>
+    <div class="since" id="since"></div>
     <div class="legend">
-      <span class="chip"><span class="dot" style="background:var(--red)"></span>Allowance</span>
-      <span class="chip"><span class="dot" style="background:var(--yellow)"></span>mg left · doses</span>
-      <span class="chip"><span class="dot" style="background:var(--purple)"></span>Agitation 1–5</span>
-      <span class="chip"><span class="dot" style="background:var(--green)"></span>Sleep h ÷ 2</span>
-      <span class="chip"><span class="dot" style="background:var(--nap)"></span>Nap</span>
+      <span class="key" style="color:var(--red)"><i></i><span>Allowance</span></span>
+      <span class="key" style="color:var(--yellow)"><i class="ln-pt"></i><span>mg left · doses</span></span>
+      <span class="key" style="color:var(--purple)"><i class="ln-pt"></i><span>Agitation 1–5</span></span>
+      <span class="key" style="color:var(--green)"><i class="ln-pt"></i><span>Sleep h ÷ 2</span></span>
+      <span class="key" style="color:var(--nap)"><i class="pt"></i><span>Nap</span></span>
     </div>
   </section>
 
@@ -256,7 +264,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-23-13';
+  const BUILD = '2026-10-23-15';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -301,7 +309,8 @@
     }
     const first = o.fills ? o.fills[0] : { t: o.start, pills: o.startCount };
     const mgPerDay = o.fills ? o.fills[o.fills.length - 1].mgPerDay : 60;
-    const end = toLocalInput(new Date(parseLocal(first.t).getTime() + first.pills * perPill / mgPerDay * DAY));
+    const e = parseLocal(first.t); e.setMinutes(e.getMinutes() + Math.round(first.pills * perPill / mgPerDay * 1440));
+    const end = toLocalInput(e);
     s.settings = { start: first.t, mgPerDay, end };
     return s;
   }
@@ -339,18 +348,20 @@
     const doses = state.doses
       .map(d => ({ ...d, date: parseLocal(d.t) }))
       .sort((a, b) => a.date - b.date);
-    const counted = doses.filter(d => d.date >= start);
+    const counted = doses.filter(d => d.date >= start && d.date <= now);
 
     // Red: what's left of the period's total if you take exactly the daily
     // allotment. Each calendar day's full allotment counts as soon as the day
     // starts, so the gap to the yellow line moves in whole doses.
     const total = s.mgPerDay * wallDays(start, end);
+    const day0 = new Date(start); day0.setHours(0, 0, 0, 0); // days run midnight to midnight
     const red = [[startT, total]];
-    for (let k = 0, day = new Date(start); day < end; k++, day.setDate(day.getDate() + 1)) {
-      red.push([day.getTime(), total - s.mgPerDay * k], [day.getTime(), Math.max(0, total - s.mgPerDay * (k + 1))]);
+    for (let k = 0, day = new Date(day0); day < end; k++, day.setDate(day.getDate() + 1)) {
+      const dt = Math.max(startT, day.getTime());
+      red.push([dt, Math.max(0, total - s.mgPerDay * k)], [dt, Math.max(0, total - s.mgPerDay * (k + 1))]);
     }
     red.push([endT, 0]);
-    const daysStarted = now < start ? 0 : Math.floor(wallDays(start, now)) + 1;
+    const daysStarted = now < start ? 0 : Math.floor(wallDays(day0, now)) + 1;
     const expected = Math.max(0, total - s.mgPerDay * daysStarted);
 
     // Yellow: what's actually left of the total, stepping down at each dose.
@@ -363,7 +374,8 @@
     }
     const taken = total - cur;
     const remaining = cur;
-    const daysLeft = Math.max(0, Math.ceil(wallDays(now, end))); // counting today
+    const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
+    const daysLeft = now >= end ? 0 : Math.max(0, Math.ceil(wallDays(now < start ? start : todayMidnight, end))); // counting today
     const byTime = list => list.map(x => ({ ...x, date: parseLocal(x.t) })).sort((a, b) => a.date - b.date);
     const agitation = byTime(state.agitation);
     const sleep = byTime(state.sleep);
@@ -379,23 +391,36 @@
     }
     const todayMg = doses.filter(d => dayKey(d.date) === dayKey(now) && d.date <= now).reduce((a, d) => a + d.mg, 0);
 
-    // Balance (the surplus/deficit number): unused allowance from finished days
-    // is +, anything taken beyond the allowance is -. Today's unused allowance
-    // isn't counted until the day is over, so the number doesn't jump at midnight.
-    let balance;
-    if (now < start) balance = 0;
-    else if (now >= end) balance = total - taken;
-    else {
-      const k = Math.floor(wallDays(start, now)); // finished days
-      const dayStart = new Date(start); dayStart.setDate(dayStart.getDate() + k);
+    // Three separate numbers:
+    //  leftToday - today's allowance minus today's doses (resets at midnight,
+    //              negative once you go over today)
+    //  balance   - finished days only: allowance minus doses (+ under, - over)
+    //  avgToTarget - mg/day to average from the start of today to land exactly
+    //              on the total by the end point
+    let balance = 0, leftToday = 0, avgToTarget = 0;
+    // Where the balance can be drawn on the chart: at the start of today the
+    // red (allowance) and yellow (actual) lines are exactly `balance` apart.
+    let balMark = null;
+    if (now >= end) {
+      balance = total - taken;
+      balMark = { t: endT, red: 0, yellow: remaining };
+    } else if (now < start) {
+      avgToTarget = total / Math.max(1, Math.ceil(wallDays(start, end)));
+    } else {
+      const k = Math.floor(wallDays(day0, now)); // finished days
+      const dayStart = new Date(day0); dayStart.setDate(dayStart.getDate() + k);
       const allowedDone = Math.min(total, s.mgPerDay * k);
       const takenBefore = counted.filter(d => d.date < dayStart).reduce((a, d) => a + d.mg, 0);
       const takenToday = counted.filter(d => d.date >= dayStart).reduce((a, d) => a + d.mg, 0);
       const todayAllowance = Math.min(s.mgPerDay, total - allowedDone);
-      balance = allowedDone - takenBefore - Math.max(0, takenToday - todayAllowance);
+      balance = allowedDone - takenBefore;
+      leftToday = todayAllowance - takenToday;
+      if (k > 0) balMark = { t: dayStart.getTime(), red: total - allowedDone, yellow: total - takenBefore };
+      const daysFromToday = Math.max(1, Math.ceil(wallDays(dayStart, end)));
+      avgToTarget = (total - takenBefore) / daysFromToday;
     }
-    balance = Math.round(balance);
-    return { s, start, end, now, doses, counted, red, yellow, total, taken, remaining, expected, daysLeft, agitation, sleep, naps, todayMg, balance };
+    balance = Math.round(balance); leftToday = Math.round(leftToday); avgToTarget = Math.max(0, Math.round(avgToTarget));
+    return { s, start, end, now, doses, counted, red, yellow, total, taken, remaining, expected, daysLeft, agitation, sleep, naps, todayMg, balance, leftToday, avgToTarget, balMark };
   }
 
   // Under the allowance = + (extra mg left to take today), over = - (deficit).
@@ -406,36 +431,40 @@
 
   function render() {
     const m = model();
-    document.getElementById('s-left').textContent = fmt(m.remaining);
-    const diff = m.balance; // + unused allowance from finished days, - taken over allowance
+    const leftEl = document.getElementById('s-left');
+    leftEl.textContent = fmt(Math.abs(m.leftToday));
+    document.getElementById('s-left-l').textContent = m.leftToday < 0 ? 'mg over today' : 'mg left today';
+    leftEl.style.color = m.leftToday < 0 ? 'var(--bad)' : '';
+    const diff = m.balance; // finished days: + under the allowance, - over
     const diffEl = document.getElementById('s-diff');
     diffEl.textContent = signedMg(diff);
-    document.getElementById('s-diff-l').textContent = diff === 0 ? 'on allowance' : diff > 0 ? 'mg extra' : 'mg deficit';
+    document.getElementById('s-diff-l').textContent = diff === 0 ? 'balance: even' : diff > 0 ? 'mg extra (past days)' : 'mg deficit (past days)';
     diffEl.style.color = diff === 0 ? '' : diff > 0 ? 'var(--good)' : 'var(--bad)';
-    document.getElementById('s-day0').textContent = fmt(m.daysLeft);
+    document.getElementById('s-avg').textContent = fmt(m.avgToTarget);
 
     const sum = document.getElementById('summary');
     const appt = fmtDate(m.end);
     const doses = n => { const k = n / 15; return Number.isInteger(k) ? ` (${k} × 15 mg)` : ''; };
     let pace, plan;
+    const today = m.leftToday >= 0 ? `${fmt(m.leftToday)} mg left today.` : `<b class="bad">${fmt(-m.leftToday)} mg over</b> today's ${fmt(m.s.mgPerDay)} mg.`;
     if (m.daysLeft <= 0) {
       pace = `Your target date was <b>${appt}</b>.`;
       plan = diff === 0 ? `You landed exactly on ${fmt(m.s.mgPerDay)} mg/day.` :
         diff < 0 ? `You finished <b class="bad">${fmt(-diff)} mg over</b>.` : `You finished <b class="good">${fmt(diff)} mg under</b>.`;
     } else if (diff === 0) {
-      pace = `You're exactly on track so far.`;
+      pace = `Earlier days are exactly on target. ${today}`;
       plan = `Keep to ${fmt(m.s.mgPerDay)} mg a day to land on target by <b>${appt}</b>.`;
     } else if (diff < 0) {
-      pace = `You're <b class="bad">${fmt(-diff)} mg${doses(-diff)} over</b> your allowance so far.`;
-      plan = `To average ${fmt(m.s.mgPerDay)} mg/day by <b>${appt}</b>, take ${fmt(-diff)} mg less in total before then.`;
+      pace = `Earlier days are <b class="bad">${fmt(-diff)} mg${doses(-diff)} over</b>. ${today}`;
+      plan = `Averaging <b>${fmt(m.avgToTarget)} mg/day</b> from today lands you on target by <b>${appt}</b>.`;
     } else {
-      pace = `You're <b class="good">${fmt(diff)} mg${doses(diff)} under</b> your allowance from earlier days.`;
-      plan = `That's ${fmt(diff)} mg you can still take on top of ${fmt(m.s.mgPerDay)} mg a day and land on target by <b>${appt}</b>.`;
+      pace = `Earlier days are <b class="good">${fmt(diff)} mg${doses(diff)} under</b>. ${today}`;
+      plan = `You could average up to <b>${fmt(m.avgToTarget)} mg/day</b> from today and still land on target by <b>${appt}</b>.`;
     }
     sum.innerHTML = `${pace} ${plan}`;
 
     document.getElementById('sched-note').textContent =
-      `${fmt(m.s.mgPerDay)} mg/day from ${fmtDate(m.start)} to ${appt} = ${fmt(m.total)} mg total. ${fmt(m.taken)} mg taken, ${fmt(m.remaining)} mg left.`;
+      `${fmt(m.s.mgPerDay)} mg/day from ${fmtDate(m.start)} to ${appt} = ${fmt(m.total)} mg total. ${fmt(m.taken)} mg taken, ${fmt(m.remaining)} mg left, ${fmt(m.daysLeft)} day${m.daysLeft === 1 ? '' : 's'} to go.`;
 
     const last = m.doses[m.doses.length - 1];
     const mins = last ? Math.max(0, Math.floor((m.now - last.date) / 60000)) : 0;
@@ -473,10 +502,11 @@
   function renderChart(m) {
     const svg = document.getElementById('chart');
     const W = Math.max(280, Math.round(svg.getBoundingClientRect().width));
-    const H = Math.round(Math.min(360, Math.max(240, W * 0.68)));
-    const pad = { l: 38, r: 22, t: 14, b: 26 };
+    const H = Math.round(Math.min(420, Math.max(260, W * 0.82)));
+    const pad = { l: 36, r: 20, t: 24, b: 26 };
     const css = getComputedStyle(document.documentElement);
     const c = k => css.getPropertyValue(k).trim();
+    const bg = c('--bg'), muted = c('--muted'), grid = c('--grid');
     const nowT = m.now.getTime();
 
     // Window: midnight two days before today (not before "Counting from")
@@ -500,85 +530,129 @@
     const yStep = [1, 2, 5, 10].map(k => k * mag).find(v => v >= raw);
     lo = Math.floor(lo / yStep) * yStep; hi = Math.ceil(hi / yStep) * yStep;
     const plotH = H - pad.t - pad.b;
+    const base = H - pad.b;
     const Y = v => pad.t + (1 - (v - lo) / (hi - lo)) * plotH;
     // Right axis: agitation 1-5 and sleep hours / 2 on a shared 0-5 scale.
     const R = v => pad.t + (1 - v / 5) * plotH;
+    const r1 = n => Math.round(n * 10) / 10;
 
-    let out = `<defs><clipPath id="plot"><rect x="${pad.l}" y="${pad.t - 6}" width="${W - pad.l - pad.r}" height="${plotH + 12}" /></clipPath></defs>`;
+    // Soft neon glow for lines, and a fade under the yellow line.
+    let out = `<defs>` +
+      `<clipPath id="plot"><rect x="${pad.l}" y="${pad.t - 8}" width="${W - pad.l - pad.r}" height="${plotH + 16}" /></clipPath>` +
+      `<filter id="glow" filterUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}">` +
+      `<feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="b" />` +
+      `<feComponentTransfer in="b" result="bf"><feFuncA type="linear" slope="1.4" /></feComponentTransfer>` +
+      `<feMerge><feMergeNode in="bf" /><feMergeNode in="SourceGraphic" /></feMerge></filter>` +
+      `<linearGradient id="yfill" gradientUnits="userSpaceOnUse" x1="0" y1="${pad.t}" x2="0" y2="${base}">` +
+      `<stop offset="0" stop-color="${c('--yellow')}" stop-opacity=".26" />` +
+      `<stop offset=".75" stop-color="${c('--yellow')}" stop-opacity=".04" />` +
+      `<stop offset="1" stop-color="${c('--yellow')}" stop-opacity="0" /></linearGradient>` +
+      `</defs>`;
+    const label = (x, y, txt, anchor = 'start', extra = '') =>
+      `<text x="${r1(x)}" y="${r1(y)}" text-anchor="${anchor}" font-size="10" fill="${muted}"${extra}>${txt}</text>`;
+    // Faint horizontal guides, mg on the left
     for (let v = lo; v <= hi + 1e-9; v += yStep) {
-      out += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${c('--grid')}" />`;
-      out += `<text x="${pad.l - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="${c('--muted')}">${fmt(v)}</text>`;
+      if (v > lo) out += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${r1(Y(v))}" y2="${r1(Y(v))}" stroke="${grid}" />`;
+      out += label(pad.l - 8, Y(v) + 3.5, fmt(v), 'end');
     }
-    for (let v = 1; v <= 5; v++) {
-      out += `<text x="${W - pad.r + 5}" y="${R(v) + 4}" font-size="11" fill="${c('--muted')}">${v}</text>`;
-    }
-    // x axis: day labels at midnight, small ticks every 6 hours
+    // 1-5 on the right (agitation, sleep h / 2)
+    for (let v = 1; v <= 5; v++) out += label(W - pad.r + 7, R(v) + 3.5, v);
+    // Day boundaries: a faint line at each midnight, the date just after it
     for (let d = new Date(x0); d.getTime() <= x1; d.setHours(d.getHours() + 6)) {
       d.setMinutes(0, 0, 0); d.setHours(Math.floor(d.getHours() / 6) * 6);
-      if (d.getTime() < x0) continue;
-      const x = X(d.getTime()), midnight = d.getHours() === 0;
-      out += `<line x1="${x}" x2="${x}" y1="${H - pad.b}" y2="${H - pad.b + (midnight ? 5 : 3)}" stroke="${c('--muted')}" />`;
-      if (midnight) {
-        out += `<line x1="${x}" x2="${x}" y1="${pad.t}" y2="${H - pad.b}" stroke="${c('--grid')}" />`;
-        out += `<text x="${x}" y="${H - 8}" text-anchor="middle" font-size="11" fill="${c('--muted')}">${d.getMonth() + 1}/${d.getDate()}</text>`;
-      }
+      if (d.getTime() < x0 || d.getHours() !== 0) continue;
+      const x = r1(X(d.getTime()));
+      out += `<line x1="${x}" x2="${x}" y1="${pad.t}" y2="${base}" stroke="${grid}" stroke-dasharray="2 4" />`;
+      out += label(x + 4, H - 8, `${d.getMonth() + 1}/${d.getDate()}`, 'start', ' font-weight="600"');
     }
-    out += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${H - pad.b}" y2="${H - pad.b}" stroke="${c('--muted')}" />`;
+    out += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${base}" y2="${base}" stroke="${grid}" />`;
 
     // now marker
-    const nx = X(nowT);
-    out += `<line x1="${nx}" x2="${nx}" y1="${pad.t}" y2="${H - pad.b}" stroke="${c('--muted')}" stroke-dasharray="3 4" opacity=".6" />`;
-    out += `<text x="${nx - 4}" y="${H - pad.b - 5}" text-anchor="end" font-size="11" fill="${c('--muted')}">now</text>`;
+    const nx = r1(X(nowT));
+    out += `<line x1="${nx}" x2="${nx}" y1="${pad.t - 4}" y2="${base}" stroke="${muted}" stroke-dasharray="2 4" opacity=".7" />`;
+    out += label(nx, pad.t - 9, 'now', 'middle', ' font-weight="600" letter-spacing=".04em"');
+
+    const ey = Y(m.expected), ay = Y(Math.max(0, m.remaining));
+    // Balance pill: drawn where the gap between the red and yellow lines really
+    // is the balance -- at the start of today (where finished days end), or at
+    // the end point once the period is over. Placed first so the agitation note
+    // can steer clear of it.
+    const bm = m.balMark && m.balMark.t >= x0 && m.balMark.t <= x1 ? m.balMark : null;
+    const bx = bm ? r1(X(bm.t)) : nx;
+    const bRed = bm ? Y(bm.red) : ey, bYel = bm ? Y(Math.max(0, bm.yellow)) : ey;
+    const balColor = m.balance > 0 ? c('--good') : m.balance < 0 ? c('--bad') : c('--text');
+    const lbl = signedMg(m.balance);
+    const pw = lbl.length * 7.6 + 30, ph = 20;
+    const right = bx + 8 + pw <= W - pad.r - 2;
+    const px = right ? bx + 8 : bx - 8 - pw;
+    const gap = Math.abs(bRed - bYel);
+    let py = gap >= ph + 8 ? (bRed + bYel) / 2 - ph / 2 : Math.min(bRed, bYel) - ph - 8;
+    py = Math.max(pad.t, Math.min(base - ph - 2, py));
+    const pill = bm ? { x0: px, x1: px + pw, y0: py, y1: py + ph } : { x0: -1e4, x1: -1e4, y0: -1e4, y1: -1e4 };
 
     out += `<g clip-path="url(#plot)">`;
-    const path = (pts, yf) => pts.map(([t, v], i) => `${i ? 'L' : 'M'}${X(t)},${yf(v)}`).join(' ');
-    // red: daily allowance
-    out += `<path d="${path(m.red, Y)}" fill="none" stroke="${c('--red')}" stroke-width="2.5" stroke-linejoin="round" />`;
-    // yellow: actually left, with a dot at each dose
-    out += `<path d="${path(yellow, v => Y(Math.max(0, v)))}" fill="none" stroke="${c('--yellow')}" stroke-width="2.5" stroke-linejoin="round" />`;
+    const path = (pts, yf) => pts.map(([t, v], i) => `${i ? 'L' : 'M'}${r1(X(t))},${r1(yf(v))}`).join(' ');
+    const yv = v => Y(Math.max(0, v));
+    // yellow area fade, then red (allowance) and yellow (actually left)
+    out += `<path d="${path(yellow, yv)} L${r1(X(yellow[yellow.length - 1][0]))},${base} L${r1(X(yellow[0][0]))},${base} Z" fill="url(#yfill)" stroke="none" />`;
+    out += `<path d="${path(m.red, Y)}" fill="none" stroke="${c('--red')}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" filter="url(#glow)" />`;
+    out += `<path d="${path(yellow, yv)}" fill="none" stroke="${c('--yellow')}" stroke-width="2.75" stroke-linejoin="round" stroke-linecap="round" filter="url(#glow)" />`;
+    // balance: the gap between allowance and actual where finished days end
+    if (bm && gap > 1) {
+      out += `<line x1="${bx}" x2="${bx}" y1="${r1(bRed)}" y2="${r1(bYel)}" stroke="${balColor}" stroke-width="2.5" filter="url(#glow)" />`;
+      out += `<circle cx="${bx}" cy="${r1(bRed)}" r="3.5" fill="${c('--red')}" stroke="${bg}" stroke-width="1.5" />`;
+      out += `<circle cx="${bx}" cy="${r1(bYel)}" r="3.5" fill="${c('--yellow')}" stroke="${bg}" stroke-width="1.5" />`;
+    }
+    out += `<circle cx="${nx}" cy="${r1(ey)}" r="4" fill="${c('--red')}" stroke="${bg}" stroke-width="2" />`;
     let level = m.total;
     for (const d of m.counted) {
       level -= d.mg;
-      out += `<circle cx="${X(d.date.getTime())}" cy="${Y(Math.max(0, level))}" r="4" fill="${c('--yellow')}" stroke="${c('--card')}" stroke-width="1.5" />`;
+      out += `<circle cx="${r1(X(d.date.getTime()))}" cy="${r1(yv(level))}" r="4.5" fill="${c('--yellow')}" stroke="${bg}" stroke-width="2" />`;
     }
     // purple: agitation, green: sleep / 2
     const series = (list, val, color) => {
       if (!list.length) return '';
       const pts = list.map(x => [x.date.getTime(), val(x)]);
-      return (pts.length > 1 ? `<path d="${path(pts, R)}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" />` : '') +
-        pts.map(([t, v]) => `<circle cx="${X(t)}" cy="${R(v)}" r="4.5" fill="${color}" stroke="${c('--card')}" stroke-width="1.5" />`).join('');
+      return (pts.length > 1 ? `<path d="${path(pts, R)}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity=".95" filter="url(#glow)" />` : '') +
+        pts.map(([t, v]) => `<circle cx="${r1(X(t))}" cy="${r1(R(v))}" r="4.5" fill="${color}" stroke="${bg}" stroke-width="2" />`).join('');
     };
     out += series(m.sleep, x => x.hours / 2, c('--green'));
     out += series(m.agitation, x => x.level, c('--purple'));
+    // naps: a light-blue dot at the time, no line, just above the axis
+    for (const n of m.naps) out += `<circle cx="${r1(X(n.date.getTime()))}" cy="${r1(R(0.35))}" r="5" fill="${c('--nap')}" stroke="${bg}" stroke-width="2" />`;
+
+    out += `<circle class="pulse" cx="${nx}" cy="${r1(ay)}" r="5" fill="none" stroke="${c('--yellow')}" stroke-width="1.5" />`;
+    out += `<circle cx="${nx}" cy="${r1(ay)}" r="5.5" fill="${c('--yellow')}" stroke="${bg}" stroke-width="2" />`;
+    out += `</g>`;
+
     // Latest agitation point: small note with the time since the dose before it
     // and that dose's amount (plus the day's running total at that dose).
     const lastAg = m.agitation[m.agitation.length - 1];
     const prevDose = lastAg && [...m.doses].reverse().find(d => d.date <= lastAg.date);
     if (prevDose) {
       const mins = Math.round((lastAg.date - prevDose.date) / 60000);
-      const ax = X(lastAg.date.getTime()), ay = R(lastAg.level);
-      const left = ax > pad.l + 110;
-      const tx = left ? ax - 9 : ax + 9;
-      const ty = lastAg.level >= 3.5 ? ay + 17 : ay - 19;
-      const anchor = left ? 'end' : 'start';
-      const sameDay = prevDose.date.toDateString() === m.now.toDateString();
-      out += `<text x="${tx}" y="${ty}" text-anchor="${anchor}" font-size="10" fill="${c('--muted')}" stroke="${c('--card')}" stroke-width="3" stroke-linejoin="round" paint-order="stroke">` +
-        `<tspan x="${tx}">${Math.floor(mins / 60)}h ${mins % 60}m after ${fmt(prevDose.mg)} mg dose</tspan>` +
-        `<tspan x="${tx}" dy="11">${fmt(prevDose.dayTotal)} mg ${sameDay ? 'today' : 'that day'} by then</tspan></text>`;
+      const l1 = `${Math.floor(mins / 60)}h ${mins % 60}m after ${fmt(prevDose.mg)} mg dose`;
+      const l2 = `${fmt(prevDose.dayTotal)} mg ${prevDose.date.toDateString() === m.now.toDateString() ? 'today' : 'that day'} by then`;
+      const ax = X(lastAg.date.getTime()), py0 = R(lastAg.level);
+      const nw = Math.max(l1.length, l2.length) * 5.6;
+      const left = ax - 10 - nw >= pad.l + 2;
+      const tx = r1(left ? ax - 10 : Math.min(ax + 10, W - pad.r - nw));
+      const box = top => ({ x0: left ? tx - nw : tx, x1: left ? tx : tx + nw, y0: top, y1: top + 26 });
+      const hits = b => b.x0 < pill.x1 + 4 && b.x1 > pill.x0 - 4 && b.y0 < pill.y1 + 4 && b.y1 > pill.y0 - 4;
+      // Below a high point, above a low one; flip if it would hit the balance pill.
+      let top = lastAg.level >= 3.5 ? py0 + 9 : py0 - 35;
+      if (hits(box(top))) top = lastAg.level >= 3.5 ? py0 - 35 : py0 + 9;
+      top = Math.max(pad.t - 4, Math.min(base - 30, top));
+      const halo = `stroke="${bg}" stroke-width="4" stroke-linejoin="round" paint-order="stroke"`;
+      out += `<text x="${tx}" y="${r1(top + 9)}" text-anchor="${left ? 'end' : 'start'}" font-size="10" ${halo}>` +
+        `<tspan x="${tx}" fill="${c('--text')}" font-weight="600">${l1}</tspan>` +
+        `<tspan x="${tx}" dy="12" fill="${muted}">${l2}</tspan></text>`;
     }
-    // naps: a light-blue dot at the time, no line, just above the axis
-    for (const n of m.naps) out += `<circle cx="${X(n.date.getTime())}" cy="${R(0.35)}" r="5" fill="${c('--nap')}" stroke="${c('--card')}" stroke-width="1.5" />`;
 
-    // gap between where you should be and where you are, at "now"
-    const ey = Y(m.expected), ay = Y(Math.max(0, m.remaining));
-    if (Math.abs(ey - ay) > 1) out += `<line x1="${nx}" x2="${nx}" y1="${ey}" y2="${ay}" stroke="${c('--text')}" stroke-width="1.5" />`;
-    out += `<circle cx="${nx}" cy="${ey}" r="4" fill="${c('--red')}" />`;
-    out += `<circle cx="${nx}" cy="${ay}" r="4.5" fill="${c('--yellow')}" stroke="${c('--card')}" stroke-width="1.5" />`;
-    out += `</g>`;
-    const lbl = signedMg(m.balance);
-    const lx = nx + 8 > W - pad.r - 30 ? nx - 8 : nx + 8;
-    const ly = Math.abs(ey - ay) < 16 ? Math.min(ey, ay) - 8 : (ey + ay) / 2 + 4;
-    out += `<text x="${lx}" y="${ly}" text-anchor="${lx < nx ? 'end' : 'start'}" font-size="12" font-weight="700" fill="${c('--text')}">${lbl}</text>`;
+    // signed balance pill
+    if (bm) out += `<rect x="${r1(px)}" y="${r1(py)}" width="${r1(pw)}" height="${ph}" rx="${ph / 2}" fill="${bg}" />`;
+    if (bm) out += `<rect x="${r1(px)}" y="${r1(py)}" width="${r1(pw)}" height="${ph}" rx="${ph / 2}" fill="${balColor}" fill-opacity=".16" stroke="${balColor}" stroke-opacity=".55" />`;
+    if (bm) out += `<text x="${r1(px + pw / 2)}" y="${r1(py + 14)}" text-anchor="middle" font-size="12" font-weight="700" fill="${balColor}">${lbl}<tspan font-size="10" font-weight="600" dx="2">mg</tspan></text>`;
 
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.innerHTML = out;
@@ -587,14 +661,14 @@
   function renderHistory(m) {
     const el = document.getElementById('history');
     const items = [
-      ...m.doses.map(d => ({ date: d.date, kind: 'dose', id: d.id, color: 'yellow', title: `${fmt(d.mg)} mg`, extra: `${fmt(d.dayTotal)} mg today` })),
+      ...[...m.doses].reverse().map(d => ({ date: d.date, kind: 'dose', id: d.id, color: 'yellow', title: `${fmt(d.mg)} mg`, extra: `${fmt(d.dayTotal)} mg ${d.date.toDateString() === m.now.toDateString() ? 'today' : 'that day'}` })),
       ...m.agitation.map(a => ({ date: a.date, kind: 'agitation', id: a.id, color: 'purple', title: `Agitation ${a.level}/5` })),
       ...m.sleep.map(x => ({ date: x.date, kind: 'sleep', id: x.id, color: 'green', title: `Sleep ${fmt(x.hours, 1)} h` })),
       ...m.naps.map(x => ({ date: x.date, kind: 'nap', id: x.id, color: 'nap', title: 'Nap' })),
     ].sort((a, b) => b.date - a.date);
     if (!items.length) { el.innerHTML = '<p class="empty">Nothing logged yet.</p>'; return; }
     el.innerHTML = items.map(it =>
-      `<div class="item" data-kind="${it.kind}"><span class="dot" style="background:var(--${it.color})"></span>` +
+      `<div class="item" data-kind="${it.kind}"><span class="dot" style="background:var(--${it.color});color:var(--${it.color})"></span>` +
       `<div class="item-main"><div class="item-t">${it.title}</div>` +
       `<div class="item-s">${fmtDate(it.date)} · ${fmtTime(it.date)}${it.extra ? ' · ' + it.extra : ''}</div></div>` +
       `<button type="button" class="del" data-kind="${it.kind}" data-del="${it.id}" aria-label="Delete">✕</button></div>`).join('');
