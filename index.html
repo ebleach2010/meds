@@ -256,7 +256,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-22-12';
+  const BUILD = '2026-10-23-13';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -528,7 +528,7 @@
     // now marker
     const nx = X(nowT);
     out += `<line x1="${nx}" x2="${nx}" y1="${pad.t}" y2="${H - pad.b}" stroke="${c('--muted')}" stroke-dasharray="3 4" opacity=".6" />`;
-    out += `<text x="${nx - 4}" y="${pad.t + 10}" text-anchor="end" font-size="11" fill="${c('--muted')}">now</text>`;
+    out += `<text x="${nx - 4}" y="${H - pad.b - 5}" text-anchor="end" font-size="11" fill="${c('--muted')}">now</text>`;
 
     out += `<g clip-path="url(#plot)">`;
     const path = (pts, yf) => pts.map(([t, v], i) => `${i ? 'L' : 'M'}${X(t)},${yf(v)}`).join(' ');
@@ -550,6 +550,22 @@
     };
     out += series(m.sleep, x => x.hours / 2, c('--green'));
     out += series(m.agitation, x => x.level, c('--purple'));
+    // Latest agitation point: small note with the time since the dose before it
+    // and that dose's amount (plus the day's running total at that dose).
+    const lastAg = m.agitation[m.agitation.length - 1];
+    const prevDose = lastAg && [...m.doses].reverse().find(d => d.date <= lastAg.date);
+    if (prevDose) {
+      const mins = Math.round((lastAg.date - prevDose.date) / 60000);
+      const ax = X(lastAg.date.getTime()), ay = R(lastAg.level);
+      const left = ax > pad.l + 110;
+      const tx = left ? ax - 9 : ax + 9;
+      const ty = lastAg.level >= 3.5 ? ay + 17 : ay - 19;
+      const anchor = left ? 'end' : 'start';
+      const sameDay = prevDose.date.toDateString() === m.now.toDateString();
+      out += `<text x="${tx}" y="${ty}" text-anchor="${anchor}" font-size="10" fill="${c('--muted')}" stroke="${c('--card')}" stroke-width="3" stroke-linejoin="round" paint-order="stroke">` +
+        `<tspan x="${tx}">${Math.floor(mins / 60)}h ${mins % 60}m after ${fmt(prevDose.mg)} mg dose</tspan>` +
+        `<tspan x="${tx}" dy="11">${fmt(prevDose.dayTotal)} mg ${sameDay ? 'today' : 'that day'} by then</tspan></text>`;
+    }
     // naps: a light-blue dot at the time, no line, just above the axis
     for (const n of m.naps) out += `<circle cx="${X(n.date.getTime())}" cy="${R(0.35)}" r="5" fill="${c('--nap')}" stroke="${c('--card')}" stroke-width="1.5" />`;
 
