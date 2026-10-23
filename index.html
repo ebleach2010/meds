@@ -35,6 +35,7 @@
     --shadow: none;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html { -webkit-text-size-adjust: 100%; background: var(--bg); }
   body {
     margin: 0; background: var(--bg); color: var(--text);
@@ -199,7 +200,11 @@
     </section>
     <section class="card">
       <p class="p-sum" id="p-sum"></p>
-      <div class="p-opts">
+      <div class="p-taper" id="p-mode" role="group" aria-label="Hours" style="grid-template-columns:1fr 1fr">
+        <button type="button" data-mode="clock" aria-pressed="true">Around the clock</button>
+        <button type="button" data-mode="awake" aria-pressed="false">Waking hours</button>
+      </div>
+      <div class="p-opts" id="p-hours">
         <div><label for="p-wake">Awake from</label><input type="time" id="p-wake"></div>
         <div><label for="p-sleep">Asleep at</label><input type="time" id="p-sleep"></div>
       </div>
@@ -214,7 +219,7 @@
       <div id="p-past"></div>
     </section>
     <section class="card"><div class="card-h"><h2>Upcoming</h2></div><div id="p-days"></div></section>
-    <p class="note" style="padding:0 4px">Spreads the 15 mg pills left in your target across your waking hours, with the gaps getting gradually longer, and never plans more than your daily allowance on any day. It's a scheduling aid, not medical advice. Check any change in how you take your medication with your prescriber.</p>
+    <p class="note" style="padding:0 4px">Spreads the 15 mg pills left in your target around the clock (or across your waking hours), with the gaps getting gradually longer, and never plans more than your daily allowance on any day. It's a scheduling aid, not medical advice. Check any change in how you take your medication with your prescriber.</p>
   </div>
 
   <div id="view-track">
@@ -324,7 +329,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-23-17';
+  const BUILD = '2026-10-23-20';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -333,7 +338,7 @@
     version: VERSION,
     settings: {
       start: '2026-10-19T00:00',
-      mgPerDay: 60,
+      mgPerDay: 75,
       end: '2026-11-04T00:00'
     },
     // Everything taken from 10/19 through 10/20 (9 × 15 mg), as one entry.
@@ -347,6 +352,7 @@
   function withLists(s) {
     for (const k of ['agitation', 'sleep', 'naps']) if (!Array.isArray(s[k])) s[k] = [];
     if (!s.plan) s.plan = { wake: '07:00', sleep: '23:00', taper: 0.2 };
+    if (!s.plan.mode) s.plan.mode = 'clock';
     return s;
   }
 
@@ -721,92 +727,106 @@
   }
 
   // ---- taper plan ----
-  // Spreads the whole 15 mg pills left in the target (total - taken) along one
-  // continuous timeline made of your waking hours from now to the end point.
-  // The pill rate falls linearly along that timeline (taper 0 = even, 0.2 =
-  // ends 20% lower), so every gap is a little longer than the one before.
-  // The first pill comes at least one gap after your last dose. No day gets
-  // more than the daily allowance (today: what's left of it); pills that
-  // can't fit are left unplanned rather than squeezed in.
+  // 1. Pills to plan = whole 15 mg pills left in the target (total - taken).
+  // 2. Each day gets a whole number of pills, never more than the daily
+  //    allowance. Today and any other part-day also can't go faster than the
+  //    allowance pace (e.g. 75 mg/day around the clock = one pill per 4h48m),
+  //    counting from one full gap after the last dose.
+  // 3. The taper setting tilts the counts towards earlier days; days with
+  //    more pills come first, so the gaps only ever get longer.
+  // 4. A day's pills are evenly spaced across that day (around the clock or
+  //    waking hours). Pills that can't fit are reported, not squeezed in.
   function buildPlan(m) {
     const PILL = 15, MIN = 60000, p = state.plan, nowT = m.now.getTime();
-    const out = { days: [], pills: 0, unplanned: 0, remainderMg: 0 };
+    const out = { days: [], pills: 0, unplanned: 0, remainderMg: 0, paceMin: 0 };
     if (m.now >= m.end) return out;
     const budget = Math.max(0, m.total - m.taken);
     const N = Math.floor(budget / PILL + 1e-9);
     out.remainderMg = Math.round(budget - N * PILL);
+    const clock = p.mode !== 'awake';
     const [wh, wm] = p.wake.split(':').map(Number), [sh, sm] = p.sleep.split(':').map(Number);
-    const fromT = Math.max(nowT, m.start.getTime());
     const cap = Math.floor(m.s.mgPerDay / PILL + 1e-9);
     const lastDose = m.counted.length ? m.counted[m.counted.length - 1].date.getTime() : null;
 
-    // Waking windows, one per calendar day, clipped to [now, end].
     const days = [];
-    const first = new Date(fromT); first.setHours(0, 0, 0, 0);
+    const first = new Date(Math.max(nowT, m.start.getTime())); first.setHours(0, 0, 0, 0);
     for (const day = new Date(first); day < m.end; day.setDate(day.getDate() + 1)) {
-      const w = new Date(day); w.setHours(wh, wm, 0, 0);
-      const z = new Date(day); z.setHours(sh, sm, 0, 0);
-      if (z <= w) z.setDate(z.getDate() + 1); // bedtime after midnight
-      const a = Math.max(w.getTime(), fromT), b = Math.min(z.getTime(), m.end.getTime());
+      const w = new Date(day), z = new Date(day);
+      if (clock) z.setDate(z.getDate() + 1);
+      else {
+        w.setHours(wh, wm, 0, 0); z.setHours(sh, sm, 0, 0);
+        if (z <= w) z.setDate(z.getDate() + 1); // bedtime after midnight
+      }
+      const full = (z - w) / MIN;                 // minutes in a whole day's window
+      const pace = full / Math.max(1, cap);       // allowance pace: fastest allowed gap
       const isToday = day.toDateString() === m.now.toDateString();
-      days.push({ day: new Date(day), a, b: Math.max(a, b), isToday, times: [],
-        takenToday: isToday ? m.doses.filter(x => x.date.toDateString() === day.toDateString() && x.date <= m.now) : [],
-        cap: isToday ? Math.max(0, Math.floor(Math.max(0, m.leftToday) / PILL + 1e-9)) : cap });
+      let a = Math.max(w.getTime(), m.start.getTime());
+      if (isToday) a = Math.max(a, nowT, lastDose ? lastDose + pace * MIN : 0);
+      const b = Math.min(z.getTime(), m.end.getTime());
+      const avail = Math.max(0, (b - a) / MIN);
+      let dcap = isToday ? Math.min(cap, Math.max(0, Math.floor(Math.max(0, m.leftToday) / PILL + 1e-9))) : cap;
+      const part = avail < full - 1;
+      if (b <= a) dcap = 0;
+      else if (part) dcap = Math.min(dcap, Math.floor(avail / pace + 1e-9) + 1);
+      days.push({ day: new Date(day), wStart: w.getTime(), a, b, avail, full, pace, part, isToday, cap: dcap, count: 0, times: [],
+        takenToday: isToday ? m.doses.filter(x => x.date.toDateString() === day.toDateString() && x.date <= m.now) : [] });
+      if (!out.paceMin && !part) out.paceMin = pace;
     }
-    const wakeMin = ((sh * 60 + sm) - (wh * 60 + wm) + 1440) % 1440 || 1440;
-
-    // Lay pills on the waking timeline of `segs` (minutes), starting `lead`
-    // minutes in, with a linear taper; returns how many fit.
-    function place(segs, n, lead) {
-      const T = segs.reduce((a, d) => a + (d.b - d.a) / MIN, 0);
-      const L = T - lead;
-      if (n <= 0 || L <= 0) return 0;
-      const f = Math.min(0.9, Math.max(0, Number(p.taper) || 0));
-      let r0 = 2 * (n - 0.5) / (L * (2 - f));
-      const maxRate = cap / wakeMin;                 // never faster than the allowance
-      if (r0 > maxRate) r0 = maxRate;
-      const r1 = r0 * (1 - f), A = (r1 - r0) / (2 * L);
-      const G = y => r0 * y + A * y * y;
-      const fit = Math.min(n, Math.floor(G(L) + 0.5));
-      for (let k = 0; k < fit; k++) {
-        const y = k === 0 ? 0 : (A === 0 ? k / r0 : 2 * k / (r0 + Math.sqrt(r0 * r0 + 4 * A * k)));
-        let x = lead + y;                             // waking minutes from the start
-        for (const d of segs) {
-          const len = (d.b - d.a) / MIN;
-          if (x <= len + 1e-6) { const t = new Date(d.a + x * MIN); t.setSeconds(0, 0); t.setMinutes(Math.round(t.getMinutes() / 5) * 5); d.times.push(t); break; }
-          x -= len;
-        }
+    // A part-day (today) has to finish one full gap before the next day's
+    // earliest possible pill (half a gap into that day at the allowance pace).
+    for (let k = 0; k + 1 < days.length; k++) {
+      const d = days[k], e = days[k + 1];
+      if (!d.part) continue;
+      const nextFirst = e.wStart + (e.full / Math.max(1, cap)) / 2 * MIN;
+      const nb = Math.min(d.b, nextFirst - d.pace * MIN);
+      if (nb < d.b) {
+        d.b = Math.max(d.a, nb);
+        d.avail = Math.max(0, (d.b - d.a) / MIN);
+        d.cap = d.b <= d.a ? 0 : Math.min(d.cap, Math.floor(d.avail / d.pace + 1e-9) + 1);
       }
-      return fit;
     }
-    // First pill no sooner than one even gap after the last dose.
-    const T0 = days.reduce((a, d) => a + (d.b - d.a) / MIN, 0);
-    const gap0 = N > 0 && T0 > 0 ? Math.max(T0 / N, wakeMin / Math.max(1, cap)) : 0;
-    const waitUntil = lastDose ? lastDose + gap0 * MIN : fromT;
-    const waking = (t0, t1) => days.reduce((a, d) => a + Math.max(0, Math.min(d.b, t1) - Math.max(d.a, t0)) / MIN, 0);
-    let lead = waitUntil > fromT ? waking(fromT, waitUntil) : 0;
 
-    let placed = place(days, N, lead);
-    // Today can't go past what's left of today's allowance: if it would, keep
-    // today's share at that limit and lay the rest from tomorrow.
-    const today = days.find(d => d.isToday);
-    if (today && today.times.length > today.cap) {
-      days.forEach(d => { d.times = []; });
-      const keep = today.cap;
-      if (keep) {
-        const a = Math.max(today.a, waitUntil), g = (today.b - a) / keep;
-        for (let i = 0; i < keep && g > 0; i++) { const t = new Date(a + g * i); t.setSeconds(0, 0); t.setMinutes(Math.round(t.getMinutes() / 5) * 5); today.times.push(t); }
-      }
-      placed = today.times.length + place(days.filter(d => !d.isToday), N - today.times.length, 0);
+    // Ideal share per day from a linear taper along the timeline, then whole
+    // pills within each day's cap.
+    const f = Math.min(0.9, Math.max(0, Number(p.taper) || 0));
+    const T = days.reduce((s, d) => s + d.avail, 0);
+    let pos = 0;
+    for (const d of days) { d.want = d.avail * (1 - f * (pos + d.avail / 2) / (T || 1)); pos += d.avail; }
+    const W = days.reduce((s, d) => s + d.want, 0);
+    for (const d of days) { d.want = W ? N * d.want / W : 0; d.count = Math.min(d.cap, Math.floor(d.want + 1e-9)); }
+    let rem = N - days.reduce((s, d) => s + d.count, 0);
+    while (rem > 0) {
+      let best = null;
+      for (const d of days) if (d.count < d.cap && (!best || d.want - d.count > best.want - best.count + 1e-9)) best = d;
+      if (!best) break;
+      best.count++; rem--;
     }
-    out.unplanned = N - placed;
+    out.unplanned = rem;
+    // Taper: among whole days, the bigger counts go first.
+    const whole = days.filter(d => !d.part);
+    const counts = whole.map(d => d.count).sort((x, y) => y - x);
+    whole.forEach((d, k) => { d.count = counts[k]; });
+
     for (const d of days) {
-      d.count = d.times.length;
-      const ms = d.times.map(t => t.getTime());
-      d.gaps = ms.slice(1).map((t, i) => (t - ms[i]) / MIN);
+      if (!d.count) { d.gaps = []; continue; }
+      const span = d.b - d.a;
+      const ms = [];
+      if (d.part) {
+        // From the first allowed moment, no closer than the allowance pace.
+        const g = d.count > 1 ? Math.max(d.pace * MIN, span / d.count) : 0;
+        for (let k = 0; k < d.count; k++) ms.push(d.a + g * k);
+      } else {
+        const g = span / d.count;
+        for (let k = 0; k < d.count; k++) ms.push(d.a + g * (k + 0.5));
+      }
+      // Round to 5 minutes on the absolute clock, so the repeated hour on the
+      // daylight-saving night can't snap a time to the wrong 1:30 AM.
+      d.times = ms.map(x => new Date(Math.round(x / (5 * MIN)) * 5 * MIN));
+      const r = d.times.map(t => t.getTime());
+      d.gaps = r.slice(1).map((t, k) => (t - r[k]) / MIN);
     }
     out.days = days;
-    out.pills = placed;
+    out.pills = days.reduce((s, d) => s + d.count, 0);
     return out;
   }
 
@@ -827,10 +847,11 @@
     }
     const appt = fmtDate(m.end);
     const planMg = plan.pills * 15;
-    let sum = `<b>${plan.pills} pills</b> (${fmt(planMg)} mg) planned through <b>${appt}</b>. ` +
+    const hrs = state.plan.mode === 'awake' ? `between ${fmtTime(parseLocal('2000-01-01T' + state.plan.wake))} and ${fmtTime(parseLocal('2000-01-01T' + state.plan.sleep))}` : 'around the clock';
+    let sum = `<b>${plan.pills} pills</b> (${fmt(planMg)} mg) planned ${hrs} through <b>${appt}</b>, never more than ${fmt(m.s.mgPerDay)} mg in a day. ` +
       `With the ${fmt(m.taken)} mg already taken that's <b>${fmt(m.taken + planMg)} of ${fmt(m.total)} mg</b>.`;
     if (plan.remainderMg) sum += ` The last ${plan.remainderMg} mg isn't a whole pill, so it's left out.`;
-    if (plan.unplanned) sum += ` ${plan.unplanned} pill${plan.unplanned === 1 ? '' : 's'} won't fit under your ${fmt(m.s.mgPerDay)} mg/day allowance and stay unplanned.`;
+    if (plan.unplanned) sum += ` <b>${plan.unplanned} pill${plan.unplanned === 1 ? '' : 's'} (${plan.unplanned * 15} mg) can't fit</b> without spacing pills closer than every ${hm(plan.paceMin)} (your ${fmt(m.s.mgPerDay)} mg/day pace), so you'd finish ${plan.unplanned * 15} mg under target.`;
     document.getElementById('p-sum').innerHTML = sum;
 
     const nowT = m.now.getTime();
@@ -840,11 +861,15 @@
       const lo = Math.min(...d.gaps), hi = Math.max(...d.gaps);
       const short = x => `${Math.floor(x / 60)}h${String(Math.round(x % 60)).padStart(2, '0')}`;
       const every = d.gaps.length ? ` · every ${short(lo)}${hi - lo >= 5 ? '–' + short(hi) : ''}` : '';
+      // On the night clocks go back, 1:00-1:59 AM happens twice; mark times
+      // in the second pass so they aren't taken an hour early.
+      const repeated = t => new Date(t.getTime() - 3600000).getHours() === t.getHours();
       const chips = [
         ...d.takenToday.map(x => `<span class="t done">${fmtTime(x.date)} ✓</span>`),
-        ...d.times.map(t => `<span class="t${t === next ? ' next' : ''}">${fmtTime(t)}</span>`),
+        ...d.times.map(t => `<span class="t${t === next ? ' next' : ''}">${fmtTime(t)}${repeated(t) ? '†' : ''}</span>`),
       ].join('');
-      return `<div class="pday"><div class="pday-h"><b>${label}</b><span>${fmt(total)} mg${every}</span></div><div class="times">${chips}</div></div>`;
+      const dst = d.times.some(repeated) ? `<div class="p-sum" style="font-size:12px;margin-top:6px">† Clocks go back an hour at 2 AM. Take this at the second ${fmtTime(d.times.find(repeated))}, after the change.</div>` : '';
+      return `<div class="pday"><div class="pday-h"><b>${label}</b><span>${fmt(total)} mg${every}</span></div><div class="times">${chips}</div>${dst}</div>`;
     }).join('') || '<p class="empty">Nothing to plan.</p>';
 
     // Past days: each finished calendar day since the start, its total and
@@ -872,6 +897,8 @@
     if (document.activeElement !== wakeEl) wakeEl.value = p.wake;
     if (document.activeElement !== sleepEl) sleepEl.value = p.sleep;
     document.querySelectorAll('#p-taper button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.taper) === Number(p.taper))));
+    document.querySelectorAll('#p-mode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === (p.mode || 'clock'))));
+    document.getElementById('p-hours').hidden = p.mode !== 'awake';
   }
 
   function renderHistory(m) {
@@ -1064,6 +1091,9 @@
       state.plan[key] = e.target.value; save(); render();
     });
   }
+  document.querySelectorAll('#p-mode button').forEach(btn => btn.addEventListener('click', () => {
+    state.plan.mode = btn.dataset.mode; save(); render();
+  }));
   document.querySelectorAll('#p-taper button').forEach(btn => btn.addEventListener('click', () => {
     state.plan.taper = Number(btn.dataset.taper); save(); render();
   }));
