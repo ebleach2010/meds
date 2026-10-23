@@ -64,6 +64,11 @@
   .times { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 7px; }
   .t { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; padding: 5px 0; text-align: center; border-radius: 999px; background: var(--chip); color: var(--text); white-space: nowrap; }
   .t.done { background: none; color: var(--muted); text-decoration: line-through; }
+  .past { display: grid; grid-template-columns: 1fr auto auto; column-gap: 14px; align-items: baseline; padding: 7px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .past:first-child { border-top: 0; }
+  .past b { font-size: 14px; font-weight: 600; }
+  .past .mg { font-size: 15px; font-weight: 700; text-align: right; }
+  .past .vs { font-size: 13px; text-align: right; min-width: 64px; }
   .t.next { background: var(--yellow); color: #000; box-shadow: 0 0 12px rgba(255,214,10,.45); }
   h1 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; margin: 0; }
   .top .date { color: var(--muted); font-size: 15px; font-weight: 500; }
@@ -204,7 +209,11 @@
         <button type="button" data-taper="0.4" aria-pressed="false">Steady taper</button>
       </div>
     </section>
-    <section class="card"><div id="p-days"></div></section>
+    <section class="card">
+      <div class="card-h"><h2>Past days</h2><span class="p-sum" id="p-past-sum"></span></div>
+      <div id="p-past"></div>
+    </section>
+    <section class="card"><div class="card-h"><h2>Upcoming</h2></div><div id="p-days"></div></section>
     <p class="note" style="padding:0 4px">Spreads the 15 mg pills left in your target across your waking hours, with the gaps getting gradually longer, and never plans more than your daily allowance on any day. It's a scheduling aid, not medical advice. Check any change in how you take your medication with your prescriber.</p>
   </div>
 
@@ -315,7 +324,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-23-16';
+  const BUILD = '2026-10-23-17';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -837,6 +846,26 @@
       ].join('');
       return `<div class="pday"><div class="pday-h"><b>${label}</b><span>${fmt(total)} mg${every}</span></div><div class="times">${chips}</div></div>`;
     }).join('') || '<p class="empty">Nothing to plan.</p>';
+
+    // Past days: each finished calendar day since the start, its total and
+    // how it compares with the daily allowance.
+    const day0 = new Date(m.start); day0.setHours(0, 0, 0, 0);
+    const todayMid = new Date(m.now); todayMid.setHours(0, 0, 0, 0);
+    const stop = m.now >= m.end ? new Date(m.end) : todayMid;
+    const rows = [];
+    let sumMg = 0, sumAllow = 0;
+    for (const d = new Date(day0); d < stop; d.setDate(d.getDate() + 1)) {
+      const key = d.toDateString();
+      const mg = m.counted.filter(x => x.date.toDateString() === key).reduce((a, x) => a + x.mg, 0);
+      const allow = m.s.mgPerDay;
+      const diff = mg - allow;
+      sumMg += mg; sumAllow += allow;
+      const vs = diff === 0 ? '<span style="color:var(--muted)">on target</span>'
+        : diff > 0 ? `<span style="color:var(--bad)">+${fmt(diff)} over</span>` : `<span style="color:var(--good)">${fmt(-diff)} under</span>`;
+      rows.push(`<div class="past"><b>${d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' })}</b><span class="mg">${fmt(mg)} mg</span><span class="vs">${vs}</span></div>`);
+    }
+    document.getElementById('p-past').innerHTML = rows.reverse().join('') || '<p class="empty">No finished days yet.</p>';
+    document.getElementById('p-past-sum').textContent = rows.length ? `${fmt(sumMg)} of ${fmt(sumAllow)} mg` : '';
 
     const p = state.plan;
     const wakeEl = document.getElementById('p-wake'), sleepEl = document.getElementById('p-sleep');
