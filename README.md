@@ -29,6 +29,20 @@ The page ends with a line like "Build 6 · Home Screen app · 12 doses saved on 
 
 Settings: counting-from date, allotted mg/day, appointment. "Export CSV" under History downloads every dose, agitation, sleep and nap entry with its date and time, plus each refill and target end date. Changing "Counting from" counts as a refill and keeps the previous period in that history.
 
+## Taper plan tab
+
+The **Taper plan** tab works out exactly when to take each remaining 15 mg pill so you land on your target by the end point:
+
+- **Pills to plan:** the target total minus everything taken so far, in whole 15 mg pills.
+- **Spacing:** the pills go on one continuous timeline made of your waking hours (Awake from / Asleep at), and each gap is slightly longer than the one before. That's the micro taper. "Even" keeps the gaps equal; "Steady taper" stretches them more than "Gentle".
+- **Safeguards:**
+  - The first pill comes at least one gap after your last logged dose.
+  - No day is planned past your daily allowance; today is capped at what's left of it.
+  - Pills that can't fit are left out rather than squeezed in.
+- **Re-plans as you go:** every logged dose, from either tab, updates the plan. "Log 15 mg now" logs the next pill.
+
+It's a scheduling aid, not medical advice; check any change in how you take your medication with your prescriber.
+
 ## Using it on an iPhone
 
 Host it with GitHub Pages (Settings → Pages → Deploy from branch → `main` / root), open the URL in Safari, then Share → **Add to Home Screen**.

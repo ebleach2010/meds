@@ -43,7 +43,28 @@
     -webkit-font-smoothing: antialiased;
   }
   main { max-width: 560px; margin: 0 auto; padding: 14px 16px 32px; }
-  .top { display: flex; align-items: baseline; justify-content: space-between; margin: 6px 0 22px; }
+  .top { display: flex; align-items: baseline; justify-content: space-between; margin: 6px 0 14px; }
+  .views { display: grid; grid-template-columns: 1fr 1fr; background: var(--chip); border-radius: 999px; padding: 4px; gap: 2px; margin-bottom: 22px; }
+  .views button { min-height: 36px; background: none; font-size: 14px; color: var(--muted); border-radius: 999px; padding: 0; }
+  .views button[aria-pressed="true"] { background: rgba(0,200,5,.16); color: var(--accent); }
+  .p-next { font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif; font-weight: 700; font-size: 56px; letter-spacing: -.03em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .p-sub { font-size: 15px; color: var(--muted); margin-top: 4px; }
+  .p-sum { font-size: 14px; color: var(--muted); margin: 0; line-height: 1.45; }
+  .p-sum b { color: var(--text); }
+  .p-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .p-opts input[type=time] { width: 100%; padding: 10px 12px; border-radius: 14px; border: 0; background: var(--chip); color: var(--text); min-height: 44px; font-size: 16px; -webkit-appearance: none; appearance: none; }
+  .p-taper { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--chip); border-radius: 999px; padding: 4px; gap: 2px; margin-top: 10px; }
+  .p-taper button { min-height: 34px; background: none; font-size: 13px; color: var(--muted); border-radius: 999px; padding: 0; }
+  .p-taper button[aria-pressed="true"] { background: rgba(0,200,5,.16); color: var(--accent); }
+  .pday { padding: 10px 0; border-top: 1px solid var(--line); }
+  .pday:first-child { border-top: 0; padding-top: 0; }
+  .pday-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; white-space: nowrap; }
+  .pday-h b { font-size: 14px; }
+  .pday-h span { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
+  .times { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 7px; }
+  .t { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; padding: 5px 0; text-align: center; border-radius: 999px; background: var(--chip); color: var(--text); white-space: nowrap; }
+  .t.done { background: none; color: var(--muted); text-decoration: line-through; }
+  .t.next { background: var(--yellow); color: #000; box-shadow: 0 0 12px rgba(255,214,10,.45); }
   h1 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; margin: 0; }
   .top .date { color: var(--muted); font-size: 15px; font-weight: 500; }
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; font-weight: 600; }
@@ -159,6 +180,35 @@
     <h1>Pill Tracker</h1>
     <span class="date" id="hdr-date"></span>
   </header>
+  <nav class="views" id="view-tabs" aria-label="View">
+    <button type="button" data-view="track" aria-pressed="true">Tracker</button>
+    <button type="button" data-view="plan" aria-pressed="false">Taper plan</button>
+  </nav>
+
+  <div id="view-plan" hidden>
+    <section class="hero">
+      <div class="p-sub">Next 15 mg pill</div>
+      <div class="p-next" id="p-next">–</div>
+      <div class="p-sub" id="p-next-sub"></div>
+      <button type="button" class="primary" id="p-log" style="width:100%;margin-top:16px;min-height:52px;font-size:17px">Log 15 mg now</button>
+    </section>
+    <section class="card">
+      <p class="p-sum" id="p-sum"></p>
+      <div class="p-opts">
+        <div><label for="p-wake">Awake from</label><input type="time" id="p-wake"></div>
+        <div><label for="p-sleep">Asleep at</label><input type="time" id="p-sleep"></div>
+      </div>
+      <div class="p-taper" id="p-taper" role="group" aria-label="Taper">
+        <button type="button" data-taper="0" aria-pressed="false">Even</button>
+        <button type="button" data-taper="0.2" aria-pressed="true">Gentle taper</button>
+        <button type="button" data-taper="0.4" aria-pressed="false">Steady taper</button>
+      </div>
+    </section>
+    <section class="card"><div id="p-days"></div></section>
+    <p class="note" style="padding:0 4px">Spreads the 15 mg pills left in your target across your waking hours, with the gaps getting gradually longer, and never plans more than your daily allowance on any day. It's a scheduling aid, not medical advice. Check any change in how you take your medication with your prescriber.</p>
+  </div>
+
+  <div id="view-track">
 
   <section class="hero">
     <div class="stats">
@@ -259,12 +309,13 @@
       <div class="row"><button type="button" id="b-reset" style="color:var(--bad)">Reset everything</button></div>
     </details>
   </section>
+  </div>
   <p class="footer" id="footer"></p>
 </main>
 
 <script>
 (function () {
-  const BUILD = '2026-10-23-15';
+  const BUILD = '2026-10-23-16';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -286,6 +337,7 @@
   // Agitation, sleep and nap logs were added later; older saves don't have them.
   function withLists(s) {
     for (const k of ['agitation', 'sleep', 'naps']) if (!Array.isArray(s[k])) s[k] = [];
+    if (!s.plan) s.plan = { wake: '07:00', sleep: '23:00', taper: 0.2 };
     return s;
   }
 
@@ -479,6 +531,7 @@
 
     renderChart(m);
     renderHistory(m);
+    renderPlan(m);
 
     const n = m.doses.length;
     document.getElementById('history-h').textContent = `History · ${n} dose${n === 1 ? '' : 's'}`;
@@ -658,6 +711,140 @@
     svg.innerHTML = out;
   }
 
+  // ---- taper plan ----
+  // Spreads the whole 15 mg pills left in the target (total - taken) along one
+  // continuous timeline made of your waking hours from now to the end point.
+  // The pill rate falls linearly along that timeline (taper 0 = even, 0.2 =
+  // ends 20% lower), so every gap is a little longer than the one before.
+  // The first pill comes at least one gap after your last dose. No day gets
+  // more than the daily allowance (today: what's left of it); pills that
+  // can't fit are left unplanned rather than squeezed in.
+  function buildPlan(m) {
+    const PILL = 15, MIN = 60000, p = state.plan, nowT = m.now.getTime();
+    const out = { days: [], pills: 0, unplanned: 0, remainderMg: 0 };
+    if (m.now >= m.end) return out;
+    const budget = Math.max(0, m.total - m.taken);
+    const N = Math.floor(budget / PILL + 1e-9);
+    out.remainderMg = Math.round(budget - N * PILL);
+    const [wh, wm] = p.wake.split(':').map(Number), [sh, sm] = p.sleep.split(':').map(Number);
+    const fromT = Math.max(nowT, m.start.getTime());
+    const cap = Math.floor(m.s.mgPerDay / PILL + 1e-9);
+    const lastDose = m.counted.length ? m.counted[m.counted.length - 1].date.getTime() : null;
+
+    // Waking windows, one per calendar day, clipped to [now, end].
+    const days = [];
+    const first = new Date(fromT); first.setHours(0, 0, 0, 0);
+    for (const day = new Date(first); day < m.end; day.setDate(day.getDate() + 1)) {
+      const w = new Date(day); w.setHours(wh, wm, 0, 0);
+      const z = new Date(day); z.setHours(sh, sm, 0, 0);
+      if (z <= w) z.setDate(z.getDate() + 1); // bedtime after midnight
+      const a = Math.max(w.getTime(), fromT), b = Math.min(z.getTime(), m.end.getTime());
+      const isToday = day.toDateString() === m.now.toDateString();
+      days.push({ day: new Date(day), a, b: Math.max(a, b), isToday, times: [],
+        takenToday: isToday ? m.doses.filter(x => x.date.toDateString() === day.toDateString() && x.date <= m.now) : [],
+        cap: isToday ? Math.max(0, Math.floor(Math.max(0, m.leftToday) / PILL + 1e-9)) : cap });
+    }
+    const wakeMin = ((sh * 60 + sm) - (wh * 60 + wm) + 1440) % 1440 || 1440;
+
+    // Lay pills on the waking timeline of `segs` (minutes), starting `lead`
+    // minutes in, with a linear taper; returns how many fit.
+    function place(segs, n, lead) {
+      const T = segs.reduce((a, d) => a + (d.b - d.a) / MIN, 0);
+      const L = T - lead;
+      if (n <= 0 || L <= 0) return 0;
+      const f = Math.min(0.9, Math.max(0, Number(p.taper) || 0));
+      let r0 = 2 * (n - 0.5) / (L * (2 - f));
+      const maxRate = cap / wakeMin;                 // never faster than the allowance
+      if (r0 > maxRate) r0 = maxRate;
+      const r1 = r0 * (1 - f), A = (r1 - r0) / (2 * L);
+      const G = y => r0 * y + A * y * y;
+      const fit = Math.min(n, Math.floor(G(L) + 0.5));
+      for (let k = 0; k < fit; k++) {
+        const y = k === 0 ? 0 : (A === 0 ? k / r0 : 2 * k / (r0 + Math.sqrt(r0 * r0 + 4 * A * k)));
+        let x = lead + y;                             // waking minutes from the start
+        for (const d of segs) {
+          const len = (d.b - d.a) / MIN;
+          if (x <= len + 1e-6) { const t = new Date(d.a + x * MIN); t.setSeconds(0, 0); t.setMinutes(Math.round(t.getMinutes() / 5) * 5); d.times.push(t); break; }
+          x -= len;
+        }
+      }
+      return fit;
+    }
+    // First pill no sooner than one even gap after the last dose.
+    const T0 = days.reduce((a, d) => a + (d.b - d.a) / MIN, 0);
+    const gap0 = N > 0 && T0 > 0 ? Math.max(T0 / N, wakeMin / Math.max(1, cap)) : 0;
+    const waitUntil = lastDose ? lastDose + gap0 * MIN : fromT;
+    const waking = (t0, t1) => days.reduce((a, d) => a + Math.max(0, Math.min(d.b, t1) - Math.max(d.a, t0)) / MIN, 0);
+    let lead = waitUntil > fromT ? waking(fromT, waitUntil) : 0;
+
+    let placed = place(days, N, lead);
+    // Today can't go past what's left of today's allowance: if it would, keep
+    // today's share at that limit and lay the rest from tomorrow.
+    const today = days.find(d => d.isToday);
+    if (today && today.times.length > today.cap) {
+      days.forEach(d => { d.times = []; });
+      const keep = today.cap;
+      if (keep) {
+        const a = Math.max(today.a, waitUntil), g = (today.b - a) / keep;
+        for (let i = 0; i < keep && g > 0; i++) { const t = new Date(a + g * i); t.setSeconds(0, 0); t.setMinutes(Math.round(t.getMinutes() / 5) * 5); today.times.push(t); }
+      }
+      placed = today.times.length + place(days.filter(d => !d.isToday), N - today.times.length, 0);
+    }
+    out.unplanned = N - placed;
+    for (const d of days) {
+      d.count = d.times.length;
+      const ms = d.times.map(t => t.getTime());
+      d.gaps = ms.slice(1).map((t, i) => (t - ms[i]) / MIN);
+    }
+    out.days = days;
+    out.pills = placed;
+    return out;
+  }
+
+  const hm = mins => `${Math.floor(mins / 60)}h ${String(Math.round(mins % 60)).padStart(2, '0')}m`;
+
+  function renderPlan(m) {
+    const plan = buildPlan(m);
+    const next = plan.days.flatMap(d => d.times)[0];
+    const nextEl = document.getElementById('p-next');
+    if (next) {
+      nextEl.textContent = fmtTime(next);
+      const mins = Math.round((next - m.now) / 60000);
+      document.getElementById('p-next-sub').textContent =
+        `${next.toDateString() === m.now.toDateString() ? 'today' : fmtDate(next)} · ${mins <= 0 ? 'due now' : 'in ' + hm(mins)}`;
+    } else {
+      nextEl.textContent = '—';
+      document.getElementById('p-next-sub').textContent = m.now >= m.end ? 'The period has ended.' : 'No pills left to plan before your end point.';
+    }
+    const appt = fmtDate(m.end);
+    const planMg = plan.pills * 15;
+    let sum = `<b>${plan.pills} pills</b> (${fmt(planMg)} mg) planned through <b>${appt}</b>. ` +
+      `With the ${fmt(m.taken)} mg already taken that's <b>${fmt(m.taken + planMg)} of ${fmt(m.total)} mg</b>.`;
+    if (plan.remainderMg) sum += ` The last ${plan.remainderMg} mg isn't a whole pill, so it's left out.`;
+    if (plan.unplanned) sum += ` ${plan.unplanned} pill${plan.unplanned === 1 ? '' : 's'} won't fit under your ${fmt(m.s.mgPerDay)} mg/day allowance and stay unplanned.`;
+    document.getElementById('p-sum').innerHTML = sum;
+
+    const nowT = m.now.getTime();
+    document.getElementById('p-days').innerHTML = plan.days.filter(d => d.count || d.takenToday.length).map(d => {
+      const label = d.isToday ? 'Today' : d.day.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
+      const total = (d.takenToday.reduce((a, x) => a + x.mg, 0)) + d.count * 15;
+      const lo = Math.min(...d.gaps), hi = Math.max(...d.gaps);
+      const short = x => `${Math.floor(x / 60)}h${String(Math.round(x % 60)).padStart(2, '0')}`;
+      const every = d.gaps.length ? ` · every ${short(lo)}${hi - lo >= 5 ? '–' + short(hi) : ''}` : '';
+      const chips = [
+        ...d.takenToday.map(x => `<span class="t done">${fmtTime(x.date)} ✓</span>`),
+        ...d.times.map(t => `<span class="t${t === next ? ' next' : ''}">${fmtTime(t)}</span>`),
+      ].join('');
+      return `<div class="pday"><div class="pday-h"><b>${label}</b><span>${fmt(total)} mg${every}</span></div><div class="times">${chips}</div></div>`;
+    }).join('') || '<p class="empty">Nothing to plan.</p>';
+
+    const p = state.plan;
+    const wakeEl = document.getElementById('p-wake'), sleepEl = document.getElementById('p-sleep');
+    if (document.activeElement !== wakeEl) wakeEl.value = p.wake;
+    if (document.activeElement !== sleepEl) sleepEl.value = p.sleep;
+    document.querySelectorAll('#p-taper button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.taper) === Number(p.taper))));
+  }
+
   function renderHistory(m) {
     const el = document.getElementById('history');
     const items = [
@@ -829,6 +1016,33 @@
     if (!confirm('Erase all logged doses and settings?')) return;
     state = withLists(JSON.parse(JSON.stringify(DEFAULTS)));
     save(); render(); renderSettings();
+  });
+
+  // ---- views ----
+  document.querySelectorAll('#view-tabs button').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('#view-tabs button').forEach(o => o.setAttribute('aria-pressed', String(o === btn)));
+    document.getElementById('view-track').hidden = btn.dataset.view !== 'track';
+    document.getElementById('view-plan').hidden = btn.dataset.view !== 'plan';
+    try { localStorage.setItem(KEY + '.view', btn.dataset.view); } catch (e) {}
+    render();
+  }));
+  try { if (localStorage.getItem(KEY + '.view') === 'plan') document.querySelector('#view-tabs [data-view="plan"]').click(); } catch (e) {}
+
+  // ---- taper plan controls ----
+  for (const [id, key] of [['p-wake', 'wake'], ['p-sleep', 'sleep']]) {
+    document.getElementById(id).addEventListener('change', e => {
+      if (!/^\d\d:\d\d$/.test(e.target.value)) return;
+      state.plan[key] = e.target.value; save(); render();
+    });
+  }
+  document.querySelectorAll('#p-taper button').forEach(btn => btn.addEventListener('click', () => {
+    state.plan.taper = Number(btn.dataset.taper); save(); render();
+  }));
+  document.getElementById('p-log').addEventListener('click', () => {
+    const t = toLocalInput(new Date());
+    state.doses.push({ id: newId(), t, mg: 15 });
+    save(); render();
+    document.getElementById('p-next-sub').textContent = `Logged 15 mg at ${fmtTime(parseLocal(t))}. Plan updated.`;
   });
 
   let rt;
