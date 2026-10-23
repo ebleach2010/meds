@@ -154,9 +154,9 @@
 
   <section class="card">
     <div class="stats">
-      <div class="stat"><div class="v" id="s-left">–</div><div class="l">mg left</div></div>
-      <div class="stat"><div class="v" id="s-diff">–</div><div class="l" id="s-diff-l">vs. allowance</div></div>
-      <div class="stat"><div class="v" id="s-day0">–</div><div class="l">days left</div></div>
+      <div class="stat"><div class="v" id="s-left">–</div><div class="l" id="s-left-l">mg left today</div></div>
+      <div class="stat"><div class="v" id="s-diff">–</div><div class="l" id="s-diff-l">balance</div></div>
+      <div class="stat"><div class="v" id="s-avg">–</div><div class="l">mg/day to target</div></div>
     </div>
   </section>
 
@@ -256,7 +256,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-23-13';
+  const BUILD = '2026-10-23-14';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -379,23 +379,28 @@
     }
     const todayMg = doses.filter(d => dayKey(d.date) === dayKey(now) && d.date <= now).reduce((a, d) => a + d.mg, 0);
 
-    // Balance (the surplus/deficit number): unused allowance from finished days
-    // is +, anything taken beyond the allowance is -. Today's unused allowance
-    // isn't counted until the day is over, so the number doesn't jump at midnight.
-    let balance;
-    if (now < start) balance = 0;
-    else if (now >= end) balance = total - taken;
-    else {
+    // Three separate numbers:
+    //  leftToday - today's allowance minus today's doses (resets at midnight,
+    //              negative once you go over today)
+    //  balance   - finished days only: allowance minus doses (+ under, - over)
+    //  avgToTarget - mg/day to average from the start of today to land exactly
+    //              on the total by the end point
+    let balance = 0, leftToday = 0, avgToTarget = 0;
+    if (now >= end) balance = total - taken;
+    else if (now >= start) {
       const k = Math.floor(wallDays(start, now)); // finished days
       const dayStart = new Date(start); dayStart.setDate(dayStart.getDate() + k);
       const allowedDone = Math.min(total, s.mgPerDay * k);
       const takenBefore = counted.filter(d => d.date < dayStart).reduce((a, d) => a + d.mg, 0);
       const takenToday = counted.filter(d => d.date >= dayStart).reduce((a, d) => a + d.mg, 0);
       const todayAllowance = Math.min(s.mgPerDay, total - allowedDone);
-      balance = allowedDone - takenBefore - Math.max(0, takenToday - todayAllowance);
+      balance = allowedDone - takenBefore;
+      leftToday = todayAllowance - takenToday;
+      const daysFromToday = Math.max(1, Math.ceil(wallDays(dayStart, end)));
+      avgToTarget = (total - takenBefore) / daysFromToday;
     }
-    balance = Math.round(balance);
-    return { s, start, end, now, doses, counted, red, yellow, total, taken, remaining, expected, daysLeft, agitation, sleep, naps, todayMg, balance };
+    balance = Math.round(balance); leftToday = Math.round(leftToday); avgToTarget = Math.max(0, Math.round(avgToTarget));
+    return { s, start, end, now, doses, counted, red, yellow, total, taken, remaining, expected, daysLeft, agitation, sleep, naps, todayMg, balance, leftToday, avgToTarget };
   }
 
   // Under the allowance = + (extra mg left to take today), over = - (deficit).
@@ -406,36 +411,40 @@
 
   function render() {
     const m = model();
-    document.getElementById('s-left').textContent = fmt(m.remaining);
-    const diff = m.balance; // + unused allowance from finished days, - taken over allowance
+    const leftEl = document.getElementById('s-left');
+    leftEl.textContent = fmt(Math.abs(m.leftToday));
+    document.getElementById('s-left-l').textContent = m.leftToday < 0 ? 'mg over today' : 'mg left today';
+    leftEl.style.color = m.leftToday < 0 ? 'var(--bad)' : '';
+    const diff = m.balance; // finished days: + under the allowance, - over
     const diffEl = document.getElementById('s-diff');
     diffEl.textContent = signedMg(diff);
-    document.getElementById('s-diff-l').textContent = diff === 0 ? 'on allowance' : diff > 0 ? 'mg extra' : 'mg deficit';
+    document.getElementById('s-diff-l').textContent = diff === 0 ? 'balance: even' : diff > 0 ? 'mg extra (past days)' : 'mg deficit (past days)';
     diffEl.style.color = diff === 0 ? '' : diff > 0 ? 'var(--good)' : 'var(--bad)';
-    document.getElementById('s-day0').textContent = fmt(m.daysLeft);
+    document.getElementById('s-avg').textContent = fmt(m.avgToTarget);
 
     const sum = document.getElementById('summary');
     const appt = fmtDate(m.end);
     const doses = n => { const k = n / 15; return Number.isInteger(k) ? ` (${k} × 15 mg)` : ''; };
     let pace, plan;
+    const today = m.leftToday >= 0 ? `${fmt(m.leftToday)} mg left today.` : `<b class="bad">${fmt(-m.leftToday)} mg over</b> today's ${fmt(m.s.mgPerDay)} mg.`;
     if (m.daysLeft <= 0) {
       pace = `Your target date was <b>${appt}</b>.`;
       plan = diff === 0 ? `You landed exactly on ${fmt(m.s.mgPerDay)} mg/day.` :
         diff < 0 ? `You finished <b class="bad">${fmt(-diff)} mg over</b>.` : `You finished <b class="good">${fmt(diff)} mg under</b>.`;
     } else if (diff === 0) {
-      pace = `You're exactly on track so far.`;
+      pace = `Earlier days are exactly on target. ${today}`;
       plan = `Keep to ${fmt(m.s.mgPerDay)} mg a day to land on target by <b>${appt}</b>.`;
     } else if (diff < 0) {
-      pace = `You're <b class="bad">${fmt(-diff)} mg${doses(-diff)} over</b> your allowance so far.`;
-      plan = `To average ${fmt(m.s.mgPerDay)} mg/day by <b>${appt}</b>, take ${fmt(-diff)} mg less in total before then.`;
+      pace = `Earlier days are <b class="bad">${fmt(-diff)} mg${doses(-diff)} over</b>. ${today}`;
+      plan = `Averaging <b>${fmt(m.avgToTarget)} mg/day</b> from today lands you on target by <b>${appt}</b>.`;
     } else {
-      pace = `You're <b class="good">${fmt(diff)} mg${doses(diff)} under</b> your allowance from earlier days.`;
-      plan = `That's ${fmt(diff)} mg you can still take on top of ${fmt(m.s.mgPerDay)} mg a day and land on target by <b>${appt}</b>.`;
+      pace = `Earlier days are <b class="good">${fmt(diff)} mg${doses(diff)} under</b>. ${today}`;
+      plan = `You could average up to <b>${fmt(m.avgToTarget)} mg/day</b> from today and still land on target by <b>${appt}</b>.`;
     }
     sum.innerHTML = `${pace} ${plan}`;
 
     document.getElementById('sched-note').textContent =
-      `${fmt(m.s.mgPerDay)} mg/day from ${fmtDate(m.start)} to ${appt} = ${fmt(m.total)} mg total. ${fmt(m.taken)} mg taken, ${fmt(m.remaining)} mg left.`;
+      `${fmt(m.s.mgPerDay)} mg/day from ${fmtDate(m.start)} to ${appt} = ${fmt(m.total)} mg total. ${fmt(m.taken)} mg taken, ${fmt(m.remaining)} mg left, ${fmt(m.daysLeft)} day${m.daysLeft === 1 ? '' : 's'} to go.`;
 
     const last = m.doses[m.doses.length - 1];
     const mins = last ? Math.max(0, Math.floor((m.now - last.date) / 60000)) : 0;
