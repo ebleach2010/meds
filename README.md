@@ -39,6 +39,7 @@ The **Taper plan** tab works out exactly when to take each remaining 15 mg pill 
   - The first pill comes at least one gap after your last logged dose.
   - No day is planned past your daily allowance; today is capped at what's left of it.
   - Pills that can't fit are left out rather than squeezed in.
+- **Past days:** a list above the upcoming days shows every finished day's total mg against the daily allowance ("on target", "+60 over", "60 under"), newest first, with the running total in the header.
 - **Re-plans as you go:** every logged dose, from either tab, updates the plan. "Log 15 mg now" logs the next pill.
 
 It's a scheduling aid, not medical advice; check any change in how you take your medication with your prescriber.
