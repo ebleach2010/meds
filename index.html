@@ -420,7 +420,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-35';
+  const BUILD = '2026-10-25-36';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -1336,9 +1336,9 @@
   // ---- even out logged times ----
   // Re-lays the doses on finished days (Counting from through yesterday) with
   // the same pills: every day gets its allowance, the amount over (or under)
-  // is cut into 30 mg then 15 mg chunks placed on days as far apart as
-  // possible, 30s go only on days from your first logged 30 on, and each
-  // day's doses are evenly spaced around the clock.
+  // goes on back-to-back days from the first (an extra 15 a day before your
+  // first logged 30, an extra 30 a day after), 30s go only on days from your
+  // first logged 30 on, and each day's doses are evenly spaced around the clock.
   function evenOutPlan(m) {
     const MIN = 60000;
     const day0 = new Date(m.start); day0.setHours(0, 0, 0, 0);
@@ -1358,16 +1358,23 @@
       const a = d > m.start ? new Date(d) : new Date(m.start), b = next < m.end ? next : new Date(m.end);
       days.push({ day: new Date(d), a, b, mg: Math.round(m.s.mgPerDay * wallDays(a, b) / 15) * 15, k30: 0 });
     }
-    // Over (or under) the allowances, as 30 then 15 mg chunks on spread-out days.
+    // Over (or under) the allowances.
     const extra = total - days.reduce((s, d) => s + d.mg, 0), sign = Math.sign(extra);
-    // 15 mg at a time, spread as evenly as the days allow.
-    const chunks = Array(Math.round(Math.abs(extra) / 15)).fill(15);
+    // On back-to-back days from the first: one extra 15 a day before your
+    // first logged 30, one extra 30 a day from then on, until it's used up
+    // (going round again if there are more than the days hold).
     const hit = new Set();
-    chunks.forEach((c, k) => {
-      let i = Math.floor((k + 0.5) * days.length / chunks.length);
-      if (sign < 0 && days[i].mg < c) i = days.reduce((best, d, j) => d.mg > days[best].mg ? j : best, 0);
-      days[i].mg += sign * c; hit.add(i);
-    });
+    let todo = Math.abs(extra), guard = 0;
+    while (todo > 0 && guard++ < 1000) {
+      let moved = false;
+      days.forEach((d, i) => {
+        if (todo <= 0) return;
+        const step = Math.min(todo, first30 && d.day >= first30 ? 30 : 15);
+        if (sign < 0 && d.mg < step) return;
+        d.mg += sign * step; todo -= step; hit.add(i); moved = true;
+      });
+      if (!moved) break;
+    }
     // 30s: round-robin over days from the first logged 30 on, as many as fit.
     let left = n30;
     const ok30 = days.filter(d => first30 && d.day >= first30);
@@ -1388,7 +1395,7 @@
         entries.push({ id: newId() + entries.length, t: toLocalInput(t), at: t.getTime(), mg: is30[k] ? 30 : 15, adjusted: true });
       }
     }
-    return { old, entries, total, n30, n15, extra, chunks, chunkDays: hit.size, from: days[0].day, to: days[days.length - 1].day };
+    return { old, entries, total, n30, n15, extra, chunkDays: hit.size, from: days[0].day, to: days[days.length - 1].day };
   }
   const evenUndo = () => { try { return JSON.parse(localStorage.getItem(KEY + '.beforeEven')); } catch (e) { return null; } };
   document.getElementById('b-even').addEventListener('click', async () => {
@@ -1398,7 +1405,7 @@
     const msg = `Re-time ${ev.old.length} doses from ${fmtDate(ev.from)} to ${fmtDate(ev.to)}: ${fmt(ev.total)} mg = ` +
       [ev.n30 ? `${ev.n30} × 30` : '', ev.n15 ? `${ev.n15} × 15` : ''].filter(Boolean).join(' + ') + ' mg.\n\n' +
       `Every day gets the ${fmt(state.settings.mgPerDay)} mg allowance` +
-      (over ? `, and the ${fmt(over)} mg ${word} (${pillsText(over)} mg) goes on ${ev.chunkDays} day${ev.chunkDays === 1 ? '' : 's'} spread as far apart as possible` : '') +
+      (over ? `, and the ${fmt(over)} mg ${word} (${pillsText(over)} mg) goes on ${ev.chunkDays} day${ev.chunkDays === 1 ? '' : 's'} in a row from the start (15s first, then 30s from your first 30 mg dose)` : '') +
       `. Each day's doses are evenly spaced. Totals don't change; today isn't touched.\n\nA backup of your current log downloads first, and "Undo even-out" puts the real times back.`;
     if (!confirm(msg)) return;
     const taken = state.doses.filter(d => ev.old.some(o => o.id === d.id));
