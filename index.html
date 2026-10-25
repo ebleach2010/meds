@@ -68,6 +68,15 @@
   .p-shape-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
   .p-shape-h span { white-space: nowrap; }
   .p-bars .b.hit { outline: 2px solid var(--yellow); outline-offset: 2px; }
+  .p-bars .area { touch-action: pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .p-bars .b[data-move] { cursor: grab; }
+  .p-bars .b.lift { z-index: 2; opacity: .9; box-shadow: 0 0 0 2px #fff, 0 8px 18px rgba(0,0,0,.7); cursor: grabbing; }
+  .p-bars .b.target { outline: 2px dashed #fff; outline-offset: 2px; }
+  .p-lock { margin-top: 14px; }
+  .p-lock button { width: 100%; min-height: 48px; font-size: 16px; }
+  .p-lock button.unlock { background: var(--chip); color: var(--text); box-shadow: none; }
+  .p-lock .p-ctl-sub { text-align: center; margin-top: 8px; }
+  .p-lock .p-ctl-sub button.link { width: auto; min-height: 0; font-size: 13px; padding: 0 2px; }
   .p-shape-h label { margin: 0; font-size: 14px; color: var(--text); }
   .p-shape-h span { font-size: 13px; font-weight: 600; color: var(--accent); }
   input[type=range] { width: 100%; height: 44px; margin: 8px 0 0; background: none; -webkit-appearance: none; appearance: none; }
@@ -279,6 +288,10 @@
         </div>
         <div class="p-bars" id="p-bars" aria-hidden="true"></div>
         <p class="p-sum" id="p-shape-note" style="margin-top:10px"></p>
+        <div class="p-lock">
+          <button type="button" class="primary" id="p-lock">Lock it in</button>
+          <p class="p-ctl-sub" id="p-lock-note"></p>
+        </div>
       </div>
       <div class="p-reserve">
         <label>Pills I have</label>
@@ -407,7 +420,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-28';
+  const BUILD = '2026-10-25-29';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -442,6 +455,8 @@
     if (![15, 30, 45].includes(Number(pl.swing))) pl.swing = 15;
     pl.swing = Number(pl.swing);
     if (!(Number(pl.seed) > 0)) pl.seed = 1;
+    pl.moves = Array.isArray(pl.moves) ? pl.moves.filter(x => x && typeof x.from === 'string' && typeof x.to === 'string') : [];
+    if (!pl.locked || typeof pl.locked !== 'object' || !pl.locked.days || typeof pl.locked.days !== 'object') pl.locked = null;
     if (!pl.pills || typeof pl.pills !== 'object' || (pl.pills[15] === false && pl.pills[30] === false)) pl.pills = { 15: true, 30: true };
     return s;
   }
@@ -508,6 +523,7 @@
   // logged in the repeated 1 AM hour on the clocks-back night isn't read as
   // the first pass of that hour.
   const when = x => x.at ? new Date(x.at) : parseLocal(x.t);
+  const dayKeyOf = d => toLocalInput(d).slice(0, 10);
   function toLocalInput(date) {
     const p = n => String(n).padStart(2, '0');
     return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
@@ -580,7 +596,7 @@
     //  balance   - finished days only: allowance minus doses (+ under, - over)
     //  avgToTarget - mg/day to average from the start of today to land exactly
     //              on the total by the end point
-    let balance = 0, leftToday = 0, avgToTarget = 0;
+    let balance = 0, leftToday = 0, avgToTarget = 0, todayTarget = s.mgPerDay, lockedToday = false;
     // Where the balance can be drawn on the chart: at the start of today the
     // red (allowance) and yellow (actual) lines are exactly `balance` apart.
     let balMark = null;
@@ -597,13 +613,16 @@
       const takenToday = counted.filter(d => d.date >= dayStart).reduce((a, d) => a + d.mg, 0);
       const todayAllowance = Math.min(s.mgPerDay, total - allowedDone);
       balance = allowedDone - takenBefore;
-      leftToday = todayAllowance - takenToday;
+      // With a locked-in taper plan, today's amount comes from the plan.
+      const lk = state.plan && state.plan.locked ? state.plan.locked.days[dayKeyOf(now)] : undefined;
+      if (lk != null && isFinite(lk)) { todayTarget = Number(lk); lockedToday = true; } else todayTarget = todayAllowance;
+      leftToday = todayTarget - takenToday;
       if (k > 0) balMark = { t: dayStart.getTime(), red: total - allowedDone, yellow: total - takenBefore };
       const daysFromToday = Math.max(1 / 24, wallDays(dayStart > start ? dayStart : start, end));
       avgToTarget = (total - takenBefore) / daysFromToday;
     }
     balance = Math.round(balance); leftToday = Math.round(leftToday); avgToTarget = Math.max(0, Math.round(avgToTarget));
-    return { s, start, end, now, doses, counted, red, yellow, total, taken, remaining, expected, daysLeft, agitation, sleep, naps, todayMg, balance, leftToday, avgToTarget, balMark };
+    return { s, start, end, now, doses, counted, red, yellow, total, taken, remaining, expected, daysLeft, agitation, sleep, naps, todayMg, balance, leftToday, avgToTarget, balMark, todayTarget, lockedToday };
   }
 
   // Under the allowance = + (extra mg left to take today), over = - (deficit).
@@ -616,7 +635,7 @@
     const m = model();
     const leftEl = document.getElementById('s-left');
     leftEl.textContent = fmt(Math.abs(m.leftToday));
-    document.getElementById('s-left-l').textContent = m.leftToday < 0 ? 'mg over today' : 'mg left today';
+    document.getElementById('s-left-l').textContent = (m.leftToday < 0 ? 'mg over today' : 'mg left today') + (m.lockedToday ? ' (locked plan)' : '');
     leftEl.style.color = m.leftToday < 0 ? 'var(--bad)' : '';
     const diff = m.balance; // finished days: + under the allowance, - over
     const diffEl = document.getElementById('s-diff');
@@ -629,7 +648,7 @@
     const appt = fmtDate(m.end);
     const doses = n => { const k = n / 15; return Number.isInteger(k) ? ` (${k} × 15 mg)` : ''; };
     let pace, plan;
-    const today = m.leftToday >= 0 ? `${fmt(m.leftToday)} mg left today.` : `<b class="bad">${fmt(-m.leftToday)} mg over</b> today's ${fmt(m.s.mgPerDay)} mg.`;
+    const today = (m.leftToday >= 0 ? `${fmt(m.leftToday)} mg left today` : `<b class="bad">${fmt(-m.leftToday)} mg over</b> today's ${fmt(m.todayTarget)} mg`) + (m.lockedToday ? ` on your locked plan (${fmt(m.todayTarget)} mg today).` : '.');
     if (m.daysLeft <= 0) {
       pace = `Your target date was <b>${appt}</b>.`;
       plan = diff === 0 ? `You landed exactly on ${fmt(m.s.mgPerDay)} mg/day.` :
@@ -654,10 +673,10 @@
     document.getElementById('since').textContent = last
       ? `${hm(mins)} since last dose`
       : 'No doses logged';
-    document.getElementById('today').textContent = `Today: ${fmt(m.todayMg)} mg of ${fmt(m.s.mgPerDay)} mg`;
+    document.getElementById('today').textContent = `Today: ${fmt(m.todayMg)} mg of ${fmt(m.todayTarget)} mg${m.lockedToday ? ' (locked plan)' : ''}`;
     const bar = document.getElementById('today-bar');
-    bar.firstElementChild.style.width = `${Math.min(100, m.todayMg / m.s.mgPerDay * 100)}%`;
-    bar.classList.toggle('over', m.todayMg > m.s.mgPerDay);
+    bar.firstElementChild.style.width = `${m.todayTarget > 0 ? Math.min(100, m.todayMg / m.todayTarget * 100) : m.todayMg ? 100 : 0}%`;
+    bar.classList.toggle('over', m.todayMg > m.todayTarget);
     document.getElementById('hdr-date').textContent = fmtDate(m.now);
 
     renderChart(m);
@@ -951,6 +970,18 @@
     const centre = (0.5 + when * (Dn - 1)) / Dn;
     out.centreDay = days.length ? days[Math.round(when * (D - 1))].day : null;
     const K = days.map((_, k) => Math.max(Number.MIN_VALUE, Math.exp(-0.5 * (((k + 0.5) / Dn - centre) / width) ** 2)));
+    days.forEach(d => { d.key = dayKeyOf(d.day); d.movable = !d.part && !d.t0; });
+    const lock = p.locked && p.locked.days;
+    out.locked = !!lock;
+    if (lock) {
+      // Locked in: each day keeps the total it had when you locked it.
+      days.forEach(d => {
+        d.cap = Math.floor(capMg(d) / g + 1e-9);
+        d.want = Math.max(0, (Number(lock[d.key]) || 0) - d.t0) / g;
+        d.units = Math.min(d.cap, Math.floor(d.want + 1e-9));
+      });
+      out.lockDiff = days.reduce((s, d) => s + d.units * g, 0) - target; // + over what's left, - under
+    } else {
     let a = L;
     // A day's cut can't take it below 0; deeper cuts spill to the days around it.
     const level = (a, A, k) => Math.min(capMg(days[k]), Math.max(0, a - Math.min(a, A * K[k]) - days[k].t0));
@@ -1009,6 +1040,19 @@
         up.units += t; down.units -= t;
       }
     }
+    // Days you moved by pressing and holding a bar: each move takes a date's
+    // amount out and puts it back in at another date; the days between shift
+    // over by one, so the total stays the same.
+    const movable = days.filter(d => d.movable), keys = movable.map(d => d.key), moved = movable.map(d => d.units);
+    out.moves = 0;
+    for (const mv of p.moves) {
+      const i = keys.indexOf(mv.from), j = keys.indexOf(mv.to);
+      if (i < 0 || j < 0 || i === j) continue;
+      moved.splice(j, 0, moved.splice(i, 1)[0]);
+      out.moves++;
+    }
+    movable.forEach((d, k) => { d.units = Math.min(d.cap, moved[k]); });
+    }
 
     let prev = lastDose;
     for (const d of days) {
@@ -1056,7 +1100,9 @@
 
   let planNext = null; // what "Log … now" logs: the next planned dose
   let planGrain = 15;
+  let barDrag = null; // a bar being moved: hold off redrawing the plan
   function renderPlan(m) {
+    if (barDrag) return;
     const plan = buildPlan(m);
     const p = state.plan;
     const all = plan.days.flatMap(d => d.doses);
@@ -1091,6 +1137,11 @@
     } else {
       sum = `<b>${plan.doses} dose${plan.doses === 1 ? '' : 's'}</b> (${fmt(plan.mg)} mg${mix}) planned ${hrs} through <b>${appt}</b>. ` +
         (m.taken ? `With the ${fmt(m.taken)} mg already taken that's` : `That's`) + ` <b>${fmt(m.taken + plan.mg)} of ${fmt(m.total)} mg</b>.`;
+      if (plan.locked) {
+        const dd = plan.lockDiff;
+        sum += dd === 0 ? ' <b>Locked in</b>, and still right on target.'
+          : ` <b>Locked in</b>, but since locking it the plan is <b class="${dd > 0 ? 'bad' : 'good'}">${fmt(Math.abs(dd))} mg ${dd > 0 ? 'over' : 'under'}</b> what's left. Unlock and lock it in again to rebalance.`;
+      }
       if (plan.reserve) sum += ` That leaves <b>${fmt(plan.reserve)} mg extra</b> at the end, as chosen.`;
       if (plan.remainderMg) sum += ` The last ${plan.remainderMg} mg doesn't make a whole ${plan.grain} mg dose, so it's left out.`;
       if (plan.unplannedMg) sum += ` <b>${plan.unplannedMg} mg can't fit</b> without going over ${fmt(plan.ceil)} mg in a day or doses closer than every ${hm(plan.paceMin)} (at most ${plan.slots} a day, one pill each), so you'd finish ${plan.unplannedMg} mg under target.`;
@@ -1110,7 +1161,7 @@
     document.getElementById('p-when-v').textContent = !plan.centreDay ? '' : wv <= 3 ? 'Right away' : wv >= 97 ? 'At the end'
       : 'Around ' + plan.centreDay.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
     const short = d => d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
-    const seq = plan.days.map(d => ({ day: d.day, mg: d.t0 + d.mg }));
+    const seq = plan.days.map(d => ({ day: d.day, mg: d.t0 + d.mg, key: d.key, movable: d.movable && !plan.locked }));
     const yesterday = plan.recent[0];
     const chain = yesterday && seq.length && seq[0].day.toDateString() === m.now.toDateString() ? [yesterday, ...seq] : seq;
     let drop = null;
@@ -1131,7 +1182,7 @@
       seq.map((x, k) => {
         const h = x.mg / top * H;
         const label = showV(k) ? `<em${h > 18 && W / n >= 18 ? ' class="in"' : ''}>${fmt(x.mg)}</em>` : '';
-        return `<div class="b${x.mg > m.s.mgPerDay ? ' over' : x.mg ? '' : ' zero'}${drop && drop.to === x ? ' hit' : ''}" style="height:${h.toFixed(1)}px">${label}</div>`;
+        return `<div class="b${x.mg > m.s.mgPerDay ? ' over' : x.mg ? '' : ' zero'}${drop && drop.to === x ? ' hit' : ''}" data-key="${x.key}"${x.movable ? ' data-move="1"' : ''} style="height:${h.toFixed(1)}px">${label}</div>`;
       }).join('') +
       `</div><div class="days"${n > 30 ? ' style="gap:1px"' : ''}>${seq.map((x, k) => `<span>${!showD(k) ? '' : x.day.toDateString() === m.now.toDateString() ? 'now' : x.day.getDate()}</span>`).join('')}</div>` : '';
     const over = seq.filter(x => x.mg > m.s.mgPerDay).length;
@@ -1155,6 +1206,15 @@
       if ((drop && drop.mg >= 45) || zeros) note += ` A drop that big can hit hard. Check it with your prescriber first.`;
     }
     document.getElementById('p-shape-note').innerHTML = note;
+    document.querySelectorAll('.p-shape .p-ctl').forEach(el => { el.hidden = plan.locked; });
+    const lockBtn = document.getElementById('p-lock');
+    lockBtn.textContent = plan.locked ? 'Unlock to change' : 'Lock it in';
+    lockBtn.classList.toggle('unlock', plan.locked);
+    lockBtn.closest('.p-lock').hidden = !n || ended || usedUp;
+    const lockedAt = p.locked ? new Date(p.locked.at) : null;
+    document.getElementById('p-lock-note').innerHTML = plan.locked
+      ? `Locked ${lockedAt ? fmtDate(lockedAt) + ', ' + fmtTime(lockedAt) : ''}. The Tracker tab uses each day's amount from this plan.`
+      : `Press and hold a bar, then drag it to move that day.` + (plan.moves ? ` ${plan.moves} move${plan.moves === 1 ? '' : 's'} · <button type="button" class="link" id="p-unmove">Undo moves</button>` : '');
 
     const shortGap = x => `${Math.floor(x / 60)}h${String(Math.round(x % 60)).padStart(2, '0')}`;
     // On the night clocks go back, 1:00-1:59 AM happens twice; mark times
@@ -1346,6 +1406,8 @@
       const kept = (state.history || []).filter(p => p.start < next.start);
       state.history = state.settings.start < next.start ? [...kept, state.settings] : kept;
     }
+    // A different period makes a locked-in plan meaningless.
+    if (next.start !== state.settings.start || next.end !== state.settings.end || next.mgPerDay !== state.settings.mgPerDay) state.plan.locked = null;
     state.settings = next;
     save(); render(); renderSettings();
     document.getElementById('settings').open = false;
@@ -1451,6 +1513,65 @@
     });
     el.addEventListener('change', () => { state.plan[key] = Number(el.value) / 100; save(); render(); });
   }
+  // Lock it in: save each day's total so the Tracker uses it as that day's amount.
+  document.getElementById('p-lock').addEventListener('click', () => {
+    if (state.plan.locked) state.plan.locked = null;
+    else {
+      const days = {};
+      for (const d of buildPlan(model()).days) days[d.key] = d.t0 + d.mg;
+      state.plan.locked = { at: Date.now(), days };
+    }
+    save(); render();
+  });
+  document.getElementById('p-lock-note').addEventListener('click', e => {
+    if (e.target.id !== 'p-unmove') return;
+    state.plan.moves = []; save(); render();
+  });
+  // Press and hold a day's bar, then drag it to another day.
+  const barsBox = document.getElementById('p-bars');
+  let press = null;
+  barsBox.addEventListener('contextmenu', e => { if (e.target.closest('.b')) e.preventDefault(); });
+  barsBox.addEventListener('touchmove', e => { if (barDrag) e.preventDefault(); }, { passive: false });
+  barsBox.addEventListener('pointerdown', e => {
+    const bar = e.target.closest('.b[data-move]');
+    if (!bar) return;
+    press = { bar, x: e.clientX, y: e.clientY, id: e.pointerId };
+    press.timer = setTimeout(() => {
+      const movable = [...barsBox.querySelectorAll('.b[data-move]')];
+      barDrag = { bar, from: bar.dataset.key, to: bar.dataset.key, movable, x0: press.x };
+      bar.classList.add('lift');
+      try { barsBox.setPointerCapture(press.id); } catch (err) {}
+      if (navigator.vibrate) navigator.vibrate(15);
+    }, 450);
+  });
+  barsBox.addEventListener('pointermove', e => {
+    if (press && !barDrag && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) { clearTimeout(press.timer); press = null; return; }
+    if (!barDrag) return;
+    e.preventDefault();
+    barDrag.bar.style.transform = `translateX(${e.clientX - barDrag.x0}px)`;
+    let best = barDrag.bar, bd = Infinity;
+    for (const b of barDrag.movable) {
+      const r = b === barDrag.bar ? null : b.getBoundingClientRect();
+      const c = r ? r.left + r.width / 2 : null;
+      if (c != null && Math.abs(e.clientX - c) < bd) { bd = Math.abs(e.clientX - c); best = b; }
+    }
+    // Stay put when the finger is still over the bar's own slot.
+    const own = barDrag.bar.getBoundingClientRect(), ownC = own.left + own.width / 2 - (e.clientX - barDrag.x0);
+    if (Math.abs(e.clientX - ownC) < bd) best = barDrag.bar;
+    barDrag.movable.forEach(b => b.classList.toggle('target', b === best && b !== barDrag.bar));
+    barDrag.to = best.dataset.key;
+  });
+  const endPress = () => {
+    if (press) clearTimeout(press.timer);
+    press = null;
+    if (!barDrag) return;
+    const { from, to } = barDrag;
+    barDrag = null;
+    if (from !== to) { state.plan.moves = [...state.plan.moves, { from, to }]; save(); }
+    render();
+  };
+  barsBox.addEventListener('pointerup', endPress);
+  barsBox.addEventListener('pointercancel', endPress);
   document.querySelectorAll('#p-pat button').forEach(btn => btn.addEventListener('click', () => {
     state.plan.pattern = btn.dataset.pat; save(); render();
   }));
