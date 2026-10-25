@@ -420,7 +420,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-29';
+  const BUILD = '2026-10-25-30';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -955,6 +955,10 @@
     const ceil = Math.max(90, m.s.mgPerDay);
     out.ceil = ceil;
     const capMg = d => Math.max(0, Math.min(d.slots * big, ceil - d.t0));
+    // And no day below 30 mg (today's doses so far count), as long as what's
+    // left covers it; if not, every day's minimum shrinks by the same share.
+    const FLOOR = 30;
+    const floor0 = d => Math.min(capMg(d), Math.max(0, FLOOR - d.t0));
     const maxDay = Math.min(slots * big, ceil);
     const t0sum = days.reduce((s, d) => s + d.t0, 0);
     const mean = D ? (target + t0sum) / D : 0;
@@ -971,6 +975,11 @@
     out.centreDay = days.length ? days[Math.round(when * (D - 1))].day : null;
     const K = days.map((_, k) => Math.max(Number.MIN_VALUE, Math.exp(-0.5 * (((k + 0.5) / Dn - centre) / width) ** 2)));
     days.forEach(d => { d.key = dayKeyOf(d.day); d.movable = !d.part && !d.t0; });
+    const floorSum = days.reduce((s, d) => s + floor0(d), 0);
+    const floorScale = floorSum > target ? target / floorSum : 1;
+    out.floorShort = floorScale < 1;
+    const minMg = d => floor0(d) * floorScale;
+    days.forEach(d => { d.minU = Math.min(Math.floor(capMg(d) / g + 1e-9), Math.ceil(minMg(d) / g - 1e-9)); });
     const lock = p.locked && p.locked.days;
     out.locked = !!lock;
     if (lock) {
@@ -984,7 +993,7 @@
     } else {
     let a = L;
     // A day's cut can't take it below 0; deeper cuts spill to the days around it.
-    const level = (a, A, k) => Math.min(capMg(days[k]), Math.max(0, a - Math.min(a, A * K[k]) - days[k].t0));
+    const level = (a, A, k) => Math.min(capMg(days[k]), Math.max(minMg(days[k]), a - Math.min(a, A * K[k]) - days[k].t0));
     const sumAt = (a, A) => days.reduce((s, _, k) => s + level(a, A, k), 0);
     // Smallest x in [lo, hi] where tooLow(x) is false.
     const solve = (tooLow, lo, hi) => { for (let i = 0; i < 80; i++) { const mid = (lo + hi) / 2; if (tooLow(mid)) lo = mid; else hi = mid; } return hi; };
@@ -997,10 +1006,17 @@
     days.forEach((d, k) => {
       d.cap = Math.floor(capMg(d) / g + 1e-9);
       d.want = level(a, A, k) / g;
-      d.units = Math.min(d.cap, Math.floor(d.want + 1e-9));
+      d.units = Math.max(d.minU, Math.min(d.cap, Math.floor(d.want + 1e-9)));
     });
     // Whole doses: largest remainders first, within each day's room.
     let rem = U - days.reduce((s, d) => s + d.units, 0);
+    while (rem < 0) { // the 30 mg minimum rounded some days up: take it back from the roomiest
+      let best = null;
+      for (const d of days) if (d.units > d.minU && (!best || d.units - d.want > best.units - best.want)) best = d;
+      if (!best) for (const d of days) if (d.units > 0 && (!best || d.units > best.units)) best = d;
+      if (!best) break;
+      best.units--; rem++;
+    }
     while (rem > 0) {
       let best = null;
       for (const d of days) if (d.units < d.cap && (!best || d.want - d.units > best.want - best.units + 1e-9)) best = d;
@@ -1036,7 +1052,7 @@
           want = Math.floor(rand(n) * (step + 1));
           if (rand(n + 7919) < 0.5) { up = lo; down = hi; }
         }
-        const t = Math.max(0, Math.min(want, down.units, up.cap - up.units));
+        const t = Math.max(0, Math.min(want, down.units - down.minU, up.cap - up.units));
         up.units += t; down.units -= t;
       }
     }
@@ -1203,6 +1219,7 @@
       note += drop ? `; biggest one-day drop <b>${fmt(drop.mg)} mg</b> (${short(drop.from.day)} → ${short(drop.to.day)}, outlined).` : '.';
       if (over) note += ` ${over} day${over === 1 ? ' is' : 's are'} over your ${fmt(m.s.mgPerDay)} mg allowance.`;
       if (zeros) note += ` <b>${zeros} day${zeros === 1 ? '' : 's'} with nothing left.</b>`;
+      if (plan.floorShort) note += ` There isn't enough left to keep every day at 30 mg, so the minimum is lower.`;
       if ((drop && drop.mg >= 45) || zeros) note += ` A drop that big can hit hard. Check it with your prescriber first.`;
     }
     document.getElementById('p-shape-note').innerHTML = note;
