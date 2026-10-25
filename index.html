@@ -259,6 +259,24 @@
           <input type="range" id="p-when" min="0" max="100" step="1" value="0" aria-describedby="p-shape-note">
           <div class="scale"><span>Today</span><span id="p-when-end">End</span></div>
         </div>
+        <div class="p-ctl">
+          <div class="p-shape-h"><label>Day-to-day pattern</label><span id="p-pat-v"></span></div>
+          <p class="p-ctl-sub">Keep each day close to the next, or swing high and low days back and forth or at random. Each high day is paired with a low one, so the total doesn't change.</p>
+          <div class="p-taper" id="p-pat" role="group" aria-label="Day-to-day pattern" style="grid-template-columns:repeat(3,1fr)">
+            <button type="button" data-pat="steady" aria-pressed="true">Steady</button>
+            <button type="button" data-pat="alt" aria-pressed="false">Alternate</button>
+            <button type="button" data-pat="random" aria-pressed="false">Random</button>
+          </div>
+          <div class="p-reserve" id="p-swing-row">
+            <label for="p-swing">Swing</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button type="button" class="link" id="p-reroll">Reshuffle</button>
+              <select id="p-swing" aria-label="How far high and low days swing">
+                <option value="15">±15 mg</option><option value="30">±30 mg</option><option value="45">±45 mg</option>
+              </select>
+            </div>
+          </div>
+        </div>
         <div class="p-bars" id="p-bars" aria-hidden="true"></div>
         <p class="p-sum" id="p-shape-note" style="margin-top:10px"></p>
       </div>
@@ -389,7 +407,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-27';
+  const BUILD = '2026-10-25-28';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -420,6 +438,10 @@
     pl.surplus = Math.max(0, Math.floor((Number(pl.surplus) || 0) / 15) * 15);
     pl.shape = unit(pl.shape);
     pl.when = unit(pl.when);
+    if (!['steady', 'alt', 'random'].includes(pl.pattern)) pl.pattern = 'steady';
+    if (![15, 30, 45].includes(Number(pl.swing))) pl.swing = 15;
+    pl.swing = Number(pl.swing);
+    if (!(Number(pl.seed) > 0)) pl.seed = 1;
     if (!pl.pills || typeof pl.pills !== 'object' || (pl.pills[15] === false && pl.pills[30] === false)) pl.pills = { 15: true, 30: true };
     return s;
   }
@@ -965,6 +987,28 @@
       const down = units.slice(0, low + 1).sort((x, y) => y - x), up = units.slice(low + 1).sort((x, y) => x - y);
       [...down, ...up].forEach((u, k) => { whole[k].units = u; });
     }
+    // Day-to-day pattern: whole days are paired by date (an even-numbered
+    // calendar day with the day after it) and mg moves from one to the other,
+    // so each pair, and the total, stays the same. Alternate makes the first
+    // of each pair the high day; random picks the direction and size per pair
+    // from a seed, so a date keeps its high or low as days go by.
+    out.pattern = p.pattern;
+    if (p.pattern === 'alt' || p.pattern === 'random') {
+      const step = Math.max(1, Math.round((Number(p.swing) || 15) / g));
+      const dayNo = d => Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY);
+      const rand = n => { let x = (n ^ Math.imul(Number(p.seed) | 0, 0x9E3779B1)) >>> 0; x = Math.imul(x ^ x >>> 15, 1 | x); x ^= x + Math.imul(x ^ x >>> 7, 61 | x); return ((x ^ x >>> 14) >>> 0) / 4294967296; };
+      for (let k = 0; k + 1 < days.length; k++) {
+        const hi = days[k], lo = days[k + 1], n = dayNo(hi.day);
+        if (n % 2 || hi.part || lo.part || hi.t0 || lo.t0) continue;
+        let want = step, up = hi, down = lo;
+        if (p.pattern === 'random') {
+          want = Math.floor(rand(n) * (step + 1));
+          if (rand(n + 7919) < 0.5) { up = lo; down = hi; }
+        }
+        const t = Math.max(0, Math.min(want, down.units, up.cap - up.units));
+        up.units += t; down.units -= t;
+      }
+    }
 
     let prev = lastDose;
     for (const d of days) {
@@ -1162,6 +1206,12 @@
     if (document.activeElement !== sleepEl) sleepEl.value = p.sleep;
     document.querySelectorAll('#p-mode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === (p.mode || 'clock'))));
     document.querySelectorAll('#p-pills button').forEach(b => b.setAttribute('aria-pressed', String(p.pills[b.dataset.pill] !== false)));
+    document.querySelectorAll('#p-pat button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.pat === p.pattern)));
+    document.getElementById('p-pat-v').textContent = p.pattern === 'alt' ? `±${p.swing} mg, every other day` : p.pattern === 'random' ? `up to ±${p.swing} mg, random` : '';
+    document.getElementById('p-swing-row').hidden = p.pattern === 'steady';
+    document.getElementById('p-reroll').hidden = p.pattern !== 'random';
+    const swingEl = document.getElementById('p-swing');
+    if (document.activeElement !== swingEl) swingEl.value = String(p.swing);
     const sel = document.getElementById('p-surplus');
     const maxMg = Math.floor(Math.max(0, m.total - m.taken) / 15 + 1e-9) * 15;
     const want = Math.min(Number(p.surplus) || 0, maxMg);
@@ -1401,6 +1451,13 @@
     });
     el.addEventListener('change', () => { state.plan[key] = Number(el.value) / 100; save(); render(); });
   }
+  document.querySelectorAll('#p-pat button').forEach(btn => btn.addEventListener('click', () => {
+    state.plan.pattern = btn.dataset.pat; save(); render();
+  }));
+  document.getElementById('p-swing').addEventListener('change', e => { state.plan.swing = Number(e.target.value) || 15; save(); render(); });
+  document.getElementById('p-reroll').addEventListener('click', () => {
+    state.plan.seed = 1 + Math.floor(Math.random() * 2147483646); save(); render();
+  });
   document.querySelectorAll('#p-pills button').forEach(btn => btn.addEventListener('click', () => {
     const pills = state.plan.pills, k = btn.dataset.pill, other = k === '15' ? '30' : '15';
     if (pills[k] !== false && pills[other] === false) { alert("Keep at least one strength on, or there's nothing to plan with."); return; }
