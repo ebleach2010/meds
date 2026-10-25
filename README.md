@@ -8,7 +8,7 @@ Your total for the period is the allotted mg/day × the calendar days from "Coun
 
 The top of the screen shows three numbers:
 - **mg left today:** today's allowance minus today's doses. It resets at midnight and turns into "mg over today" if you go past it.
-- **Balance (past days):** finished days only. Unused allowance is `+` ("mg extra"), anything over is `−` ("mg deficit").
+- **Balance (past days):** finished days only. Unused allowance is `+` ("mg extra"), anything over is `−` ("mg deficit"), also written as pills, e.g. "· 4 × 30 + 1 × 15 mg pills" (30s once you've logged a 30 mg dose, otherwise all 15s).
 - **mg/day to target:** what to average from today on to land exactly on the total by the appointment.
 
 Doses logged with a future time don't count until that time arrives.
@@ -28,6 +28,8 @@ History is one list of every dose, agitation, sleep and nap entry with its date 
 The page ends with a line like "Build 6 · Home Screen app · 12 doses saved on this device". The Safari tab and the Home Screen app each keep their own saved doses; use Export/Import backup to move them.
 
 Settings: counting-from date, allotted mg/day, appointment. "Export CSV" under History downloads every dose, agitation, sleep and nap entry with its date and time, plus each refill and target end date. Changing "Counting from" counts as a refill and keeps the previous period in that history.
+
+**Even out logged times** (in Settings) re-times every dose on finished days (Counting from through yesterday) with the same pills: each day gets the allowance, the amount over or under is cut into 30 then 15 mg chunks spread over days as far apart as possible, 30 mg pills only go on days from your first logged 30 on, and each day's doses are evenly spaced around the clock. Totals, the balance and the number of 30s don't change; today and agitation/sleep/nap entries aren't touched. It asks first, downloads a backup of the real log, marks every re-timed dose "adjusted" (in History and the CSV), and **Undo even-out** puts the real times back.
 
 ## Taper plan tab
 

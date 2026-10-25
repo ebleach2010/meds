@@ -411,6 +411,9 @@
         <button type="button" id="b-import">Import backup</button>
         <input type="file" id="f-import" accept="application/json,.json" hidden>
       </div>
+      <div class="row"><button type="button" id="b-even">Even out logged times</button></div>
+      <div class="row" id="b-uneven-row"><button type="button" id="b-uneven">Undo even-out</button></div>
+      <p class="note">Even out re-times every dose on finished days so the same pills are evenly spaced: each day gets the allowance, and anything over (or under) is spread over days as far apart as possible. Totals don't change. Re-timed doses are marked "adjusted"; a backup downloads first and Undo puts the real times back.</p>
       <div class="row"><button type="button" id="b-reset" style="color:var(--bad)">Reset everything</button></div>
     </details>
   </section>
@@ -420,7 +423,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-30';
+  const BUILD = '2026-10-25-31';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -631,8 +634,18 @@
     return n > 0 ? `+${n}` : n < 0 ? `\u2212${-n}` : '0';
   }
 
+  // An amount as pills: as many 30s as fit plus at most one 15 once you've
+  // logged a 30 mg dose ("4 × 30 + 1 × 15"), otherwise all 15s ("9 × 15").
+  function pillsText(mg) {
+    const n = Math.round(mg);
+    if (!n || n % 15) return '';
+    const n30 = state.doses.some(d => Number(d.mg) === 30) ? Math.floor(n / 30) : 0, n15 = (n - 30 * n30) / 15;
+    return [n30 ? `${n30} × 30` : '', n15 ? `${n15} × 15` : ''].filter(Boolean).join(' + ');
+  }
+
   function render() {
     const m = model();
+    document.getElementById('b-uneven-row').hidden = !evenUndo();
     const leftEl = document.getElementById('s-left');
     leftEl.textContent = fmt(Math.abs(m.leftToday));
     document.getElementById('s-left-l').textContent = (m.leftToday < 0 ? 'mg over today' : 'mg left today') + (m.lockedToday ? ' (locked plan)' : '');
@@ -640,13 +653,14 @@
     const diff = m.balance; // finished days: + under the allowance, - over
     const diffEl = document.getElementById('s-diff');
     diffEl.textContent = signedMg(diff);
-    document.getElementById('s-diff-l').textContent = diff === 0 ? 'balance: even' : diff > 0 ? 'mg extra (past days)' : 'mg deficit (past days)';
+    const asPills = diff ? pillsText(Math.abs(diff)) : '';
+    document.getElementById('s-diff-l').textContent = (diff === 0 ? 'balance: even' : diff > 0 ? 'mg extra (past days)' : 'mg deficit (past days)') + (asPills ? ` · ${asPills} mg pills` : '');
     diffEl.style.color = diff === 0 ? '' : diff > 0 ? 'var(--good)' : 'var(--bad)';
     document.getElementById('s-avg').textContent = fmt(m.avgToTarget);
 
     const sum = document.getElementById('summary');
     const appt = fmtDate(m.end);
-    const doses = n => { const k = n / 15; return Number.isInteger(k) ? ` (${k} × 15 mg)` : ''; };
+    const doses = n => { const t = pillsText(n); return t ? ` (${t} mg)` : ''; };
     let pace, plan;
     const today = (m.leftToday >= 0 ? `${fmt(m.leftToday)} mg left today` : `<b class="bad">${fmt(-m.leftToday)} mg over</b> today's ${fmt(m.todayTarget)} mg`) + (m.lockedToday ? ` on your locked plan (${fmt(m.todayTarget)} mg today).` : '.');
     if (m.daysLeft <= 0) {
@@ -1304,7 +1318,7 @@
   function renderHistory(m) {
     const el = document.getElementById('history');
     const items = [
-      ...[...m.doses].reverse().map(d => ({ date: d.date, kind: 'dose', id: d.id, color: 'yellow', title: `${fmt(d.mg)} mg`, extra: `${fmt(d.dayTotal)} mg ${d.date.toDateString() === m.now.toDateString() ? 'today' : 'that day'}` })),
+      ...[...m.doses].reverse().map(d => ({ date: d.date, kind: 'dose', id: d.id, color: 'yellow', title: `${fmt(d.mg)} mg`, extra: `${fmt(d.dayTotal)} mg ${d.date.toDateString() === m.now.toDateString() ? 'today' : 'that day'}${d.adjusted ? ' · adjusted' : ''}` })),
       ...m.agitation.map(a => ({ date: a.date, kind: 'agitation', id: a.id, color: 'purple', title: `Agitation ${a.level}/5` })),
       ...m.sleep.map(x => ({ date: x.date, kind: 'sleep', id: x.id, color: 'green', title: `Sleep ${fmt(x.hours, 1)} h` })),
       ...m.naps.map(x => ({ date: x.date, kind: 'nap', id: x.id, color: 'nap', title: 'Nap' })),
@@ -1430,6 +1444,90 @@
     document.getElementById('settings').open = false;
   });
 
+  // ---- even out logged times ----
+  // Re-lays the doses on finished days (Counting from through yesterday) with
+  // the same pills: every day gets its allowance, the amount over (or under)
+  // is cut into 30 mg then 15 mg chunks placed on days as far apart as
+  // possible, 30s go only on days from your first logged 30 on, and each
+  // day's doses are evenly spaced around the clock.
+  function evenOutPlan(m) {
+    const MIN = 60000;
+    const day0 = new Date(m.start); day0.setHours(0, 0, 0, 0);
+    const todayMid = new Date(m.now); todayMid.setHours(0, 0, 0, 0);
+    const stop = todayMid < m.end ? todayMid : new Date(m.end);
+    const old = m.counted.filter(d => d.date < stop);
+    if (!old.length) return { error: 'There are no doses on finished days to even out yet.' };
+    if (old.some(d => d.mg % 15)) return { error: "Some doses aren't a whole number of 15 mg pills, so they can't be re-laid as pills." };
+    const total = old.reduce((s, d) => s + d.mg, 0);
+    const n30 = old.filter(d => d.mg === 30).length, n15 = (total - 30 * n30) / 15;
+    const thirties = m.doses.filter(d => d.mg === 30);
+    const first30 = thirties.length ? new Date(thirties[0].date) : null;
+    if (first30) first30.setHours(0, 0, 0, 0);
+    const days = [];
+    for (const d = new Date(day0); d < stop; d.setDate(d.getDate() + 1)) {
+      const next = new Date(d); next.setDate(next.getDate() + 1);
+      const a = d > m.start ? new Date(d) : new Date(m.start), b = next < m.end ? next : new Date(m.end);
+      days.push({ day: new Date(d), a, b, mg: Math.round(m.s.mgPerDay * wallDays(a, b) / 15) * 15, k30: 0 });
+    }
+    // Over (or under) the allowances, as 30 then 15 mg chunks on spread-out days.
+    const extra = total - days.reduce((s, d) => s + d.mg, 0), sign = Math.sign(extra);
+    const c30 = Math.floor(Math.abs(extra) / 30), c15 = (Math.abs(extra) - 30 * c30) / 15;
+    const chunks = [...Array(c30).fill(30), ...Array(c15).fill(15)];
+    const hit = new Set();
+    chunks.forEach((c, k) => {
+      let i = Math.floor((k + 0.5) * days.length / chunks.length);
+      if (sign < 0 && days[i].mg < c) i = days.reduce((best, d, j) => d.mg > days[best].mg ? j : best, 0);
+      days[i].mg += sign * c; hit.add(i);
+    });
+    // 30s: round-robin over days from the first logged 30 on, as many as fit.
+    let left = n30;
+    const ok30 = days.filter(d => first30 && d.day >= first30);
+    while (left > 0) {
+      let placed = false;
+      for (const d of ok30) if (left > 0 && (d.k30 + 1) * 30 <= d.mg) { d.k30++; left--; placed = true; }
+      if (!placed) return { error: `The ${n30} × 30 mg doses don't fit on the days since your first 30 mg dose.` };
+    }
+    const entries = [];
+    for (const d of days) {
+      const n = d.k30 + (d.mg - 30 * d.k30) / 15;
+      if (!n) continue;
+      const is30 = new Array(n).fill(false);
+      for (let j = 0; j < d.k30; j++) is30[Math.round((j + 0.5) * n / d.k30 - 0.5)] = true;
+      const gap = (d.b - d.a) / n;
+      for (let k = 0; k < n; k++) {
+        const t = new Date(Math.round((d.a.getTime() + gap * (k + 0.5)) / MIN) * MIN);
+        entries.push({ id: newId() + entries.length, t: toLocalInput(t), at: t.getTime(), mg: is30[k] ? 30 : 15, adjusted: true });
+      }
+    }
+    return { old, entries, total, n30, n15, extra, chunks, chunkDays: hit.size, from: days[0].day, to: days[days.length - 1].day };
+  }
+  const evenUndo = () => { try { return JSON.parse(localStorage.getItem(KEY + '.beforeEven')); } catch (e) { return null; } };
+  document.getElementById('b-even').addEventListener('click', async () => {
+    const ev = evenOutPlan(model());
+    if (ev.error) { alert(ev.error); return; }
+    const over = Math.abs(ev.extra), word = ev.extra > 0 ? 'over' : 'under';
+    const msg = `Re-time ${ev.old.length} doses from ${fmtDate(ev.from)} to ${fmtDate(ev.to)}: ${fmt(ev.total)} mg = ` +
+      [ev.n30 ? `${ev.n30} × 30` : '', ev.n15 ? `${ev.n15} × 15` : ''].filter(Boolean).join(' + ') + ' mg.\n\n' +
+      `Every day gets the ${fmt(state.settings.mgPerDay)} mg allowance` +
+      (over ? `, and the ${fmt(over)} mg ${word} (${pillsText(over)} mg) goes on ${ev.chunkDays} day${ev.chunkDays === 1 ? '' : 's'} spread as far apart as possible` : '') +
+      `. Each day's doses are evenly spaced. Totals don't change; today isn't touched.\n\nA backup of your current log downloads first, and "Undo even-out" puts the real times back.`;
+    if (!confirm(msg)) return;
+    const removed = state.doses.filter(d => ev.old.some(o => o.id === d.id));
+    try { localStorage.setItem(KEY + '.beforeEven', JSON.stringify({ removed, added: ev.entries.map(e => e.id) })); } catch (e) {}
+    await download(JSON.stringify(state, null, 2), 'application/json', `pill-tracker-before-even-out-${today()}.json`);
+    const ids = new Set(removed.map(d => d.id));
+    state.doses = [...state.doses.filter(d => !ids.has(d.id)), ...ev.entries];
+    save(); render();
+  });
+  document.getElementById('b-uneven').addEventListener('click', () => {
+    const u = evenUndo();
+    if (!u || !confirm('Put back the real logged times from before you evened them out?')) return;
+    const added = new Set(u.added);
+    state.doses = [...state.doses.filter(d => !added.has(d.id)), ...u.removed];
+    try { localStorage.removeItem(KEY + '.beforeEven'); } catch (e) {}
+    save(); render();
+  });
+
   // Reopening Settings shows what's saved, not edits you closed without saving.
   document.querySelector('#settings summary').addEventListener('click', () => { if (!document.getElementById('settings').open) renderSettings(); });
 
@@ -1463,7 +1561,7 @@
       rows.push([p.start, 'Refill / start', '', '', `${fmt(p.mgPerDay)} mg/day allotment; target end ${p.end.replace('T', ' ')}`]);
       rows.push([p.end, 'Target end', '', '', '']);
     }
-    for (const d of state.doses) rows.push([d.t, 'Dose', fmt(d.mg), '', '']);
+    for (const d of state.doses) rows.push([d.t, 'Dose', fmt(d.mg), '', d.adjusted ? 'adjusted (evenly spaced)' : '']);
     for (const a of state.agitation) rows.push([a.t, 'Agitation', '', String(a.level), '1-5']);
     for (const x of state.sleep) rows.push([x.t, 'Sleep', '', fmt(x.hours, 1), 'hours']);
     for (const x of state.naps) rows.push([x.t, 'Nap', '', '', '']);
