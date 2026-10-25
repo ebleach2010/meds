@@ -21,6 +21,8 @@ The look is dark and neon whatever the phone's light/dark setting.
 
 The chart shows the last few days through now. Each dose is a yellow dot on the yellow line. A second scale on the right (0–5) carries **agitation** (purple dots joined by a line, 1 = calm, 5 = very agitated; the latest one carries a small note with the time since the dose before it, that dose's mg and the day's running total at that dose), **sleep** (green dots joined by a line, hours ÷ 2 so 10 hours sits at 5) and **naps** (light-blue dots, no line, just above the axis). Under the chart: time since the last dose and today's running total with a progress bar, e.g. "Today: 45 mg of 60 mg".
 
+**Dispenser** (a card on the Tracker): set your dispenser's release times and amounts once (default 8:00 AM 30 mg, 12:00 PM 15 mg, 8:00 PM 30 mg), tick "Use the dispenser schedule", pick when it starts and save. From then on each release counts as taken automatically at its time: the chart, today's total, balance, History ("dispenser") and the CSV all include it, so you don't log those doses. If one was missed, delete it in History (it's marked missed). Saving a new schedule (e.g. 30s only once the 15s run out) or switching it off takes effect from its start time; earlier days keep the schedule they had. The card's header shows the next release.
+
 Logging is one card: pick Dose, Agitation, Sleep or Nap at the top, choose the value (15/30 mg, 1–5, or hours with − / +; naps have no value), set the date & time (or tap Now), then tap the Log button.
 
 History is one list of every dose, agitation, sleep and nap entry with its date and time, newest first; each dose also shows that day's running total. The yellow line under the chart shows the time since the last logged dose.
