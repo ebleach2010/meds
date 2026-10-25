@@ -59,9 +59,30 @@
   .p-reserve select { min-height: 40px; padding: 0 34px 0 14px; border-radius: 999px; border: 0; background: var(--chip); color: var(--text); font: inherit; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; -webkit-appearance: none; appearance: none;
     background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
     background-position: right 16px center, right 11px center; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
-  .p-taper { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--chip); border-radius: 999px; padding: 4px; gap: 2px; margin-top: 10px; }
+  .p-taper { display: grid; grid-template-columns: 1fr 1fr; background: var(--chip); border-radius: 999px; padding: 4px; gap: 2px; margin-top: 10px; }
   .p-taper button { min-height: 34px; background: none; font-size: 13px; color: var(--muted); border-radius: 999px; padding: 0; }
   .p-taper button[aria-pressed="true"] { background: rgba(0,200,5,.16); color: var(--accent); }
+  .p-shape { margin-top: 18px; }
+  .p-shape-h { display: flex; justify-content: space-between; align-items: baseline; }
+  .p-shape-h label { margin: 0; font-size: 14px; color: var(--text); }
+  .p-shape-h span { font-size: 13px; font-weight: 600; color: var(--accent); }
+  input[type=range] { width: 100%; height: 30px; margin: 8px 0 0; background: none; -webkit-appearance: none; appearance: none; }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--accent), var(--yellow), var(--bad)); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; margin-top: -11px; border-radius: 50%; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.7); }
+  input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--accent), var(--yellow), var(--bad)); }
+  input[type=range]::-moz-range-thumb { width: 26px; height: 26px; border: 0; border-radius: 50%; background: #fff; }
+  .p-bars { margin-top: 12px; }
+  .p-bars .area { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 78px; padding-top: 14px; }
+  .p-bars .b { position: relative; flex: 1; min-width: 0; min-height: 2px; border-radius: 4px 4px 1px 1px; background: var(--accent); box-shadow: 0 0 8px rgba(0,200,5,.3); }
+  .p-bars .b.over { background: var(--bad); box-shadow: 0 0 8px rgba(255,80,0,.35); }
+  .p-bars .b.zero { background: var(--line); box-shadow: none; }
+  .p-bars .b em { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); z-index: 1; margin-bottom: 2px; padding: 0 2px; background: var(--card); white-space: nowrap; font-style: normal; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .p-bars .allow { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--red); opacity: .8; pointer-events: none; }
+  .p-bars .days { display: flex; gap: 3px; margin-top: 4px; }
+  .p-bars .days span { flex: 1; min-width: 0; text-align: center; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .p-pills { display: flex; gap: 6px; }
+  .p-pills button { min-height: 38px; padding: 0 14px; border-radius: 999px; font-size: 14px; color: var(--muted); text-decoration: line-through; }
+  .p-pills button[aria-pressed="true"] { background: rgba(0,200,5,.16); color: var(--accent); text-decoration: none; }
   .pday { padding: 10px 0; border-top: 1px solid var(--line); }
   .pday:first-child { border-top: 0; padding-top: 0; }
   .pday-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; white-space: nowrap; }
@@ -70,6 +91,9 @@
   .times { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 7px; }
   .t { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; padding: 5px 0; text-align: center; border-radius: 999px; background: var(--chip); color: var(--text); white-space: nowrap; }
   .t.done { background: none; color: var(--muted); text-decoration: line-through; }
+  .t i { font-style: normal; font-size: 10px; font-weight: 700; color: var(--accent); margin-left: 3px; }
+  .t.next i, .t.done i { color: inherit; }
+  .pday-h span.over { color: var(--bad); }
   .past { display: grid; grid-template-columns: 1fr auto auto; column-gap: 14px; align-items: baseline; padding: 7px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
   .past:first-child { border-top: 0; }
   .past b { font-size: 14px; font-weight: 600; }
@@ -198,7 +222,7 @@
 
   <div id="view-plan" hidden>
     <section class="hero">
-      <div class="p-sub">Next 15 mg pill</div>
+      <div class="p-sub" id="p-next-l">Next dose</div>
       <div class="p-next" id="p-next">–</div>
       <div class="p-sub" id="p-next-sub"></div>
       <button type="button" class="primary" id="p-log" style="width:100%;margin-top:16px;min-height:52px;font-size:17px">Log 15 mg now</button>
@@ -213,10 +237,19 @@
         <div><label for="p-wake">Awake from</label><input type="time" id="p-wake"></div>
         <div><label for="p-sleep">Asleep at</label><input type="time" id="p-sleep"></div>
       </div>
-      <div class="p-taper" id="p-taper" role="group" aria-label="Taper">
-        <button type="button" data-taper="0" aria-pressed="false">Even</button>
-        <button type="button" data-taper="0.2" aria-pressed="true">Gentle taper</button>
-        <button type="button" data-taper="0.4" aria-pressed="false">Steady taper</button>
+      <div class="p-shape">
+        <div class="p-shape-h"><label for="p-shape">Taper shape</label><span id="p-shape-v"></span></div>
+        <input type="range" id="p-shape" min="0" max="100" step="1" value="0" aria-describedby="p-shape-note">
+        <div class="scale"><span>Smooth: small drops</span><span>Aggressive: hold, then drop</span></div>
+        <div class="p-bars" id="p-bars" aria-hidden="true"></div>
+        <p class="p-sum" id="p-shape-note" style="margin-top:10px"></p>
+      </div>
+      <div class="p-reserve">
+        <label>Pills I have</label>
+        <div class="p-pills" id="p-pills" role="group" aria-label="Pills I have">
+          <button type="button" data-pill="15" aria-pressed="true">15 mg</button>
+          <button type="button" data-pill="30" aria-pressed="true">30 mg</button>
+        </div>
       </div>
       <div class="p-reserve">
         <label for="p-surplus">Finish with extra</label>
@@ -228,7 +261,7 @@
       <div id="p-past"></div>
     </section>
     <section class="card"><div class="card-h"><h2>Upcoming</h2></div><div id="p-days"></div></section>
-    <p class="note" style="padding:0 4px">Spreads the 15 mg pills left in your target around the clock (or across your waking hours), with the gaps getting gradually longer, and never plans more than your daily allowance on any day. It's a scheduling aid, not medical advice. Check any change in how you take your medication with your prescriber.</p>
+    <p class="note" style="padding:0 4px">Spreads what's left of your target over the days to your end point, starting from what you've been taking lately and coming down to land exactly on target. Doses are one 15 or 30 mg pill, never closer together than your allowance pace. Days above your daily allowance show in orange. It's a scheduling aid, not medical advice. Check any change in how you take your medication with your prescriber, especially a sharp drop.</p>
   </div>
 
   <div id="view-track">
@@ -338,7 +371,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-23-21';
+  const BUILD = '2026-10-25-22';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -363,6 +396,8 @@
     if (!s.plan) s.plan = { wake: '07:00', sleep: '23:00', taper: 0.2 };
     if (!s.plan.mode) s.plan.mode = 'clock';
     if (s.plan.surplus == null) s.plan.surplus = 0;
+    if (s.plan.shape == null) s.plan.shape = 0;
+    if (!s.plan.pills) s.plan.pills = { 15: true, 30: true };
     return s;
   }
 
@@ -737,27 +772,36 @@
   }
 
   // ---- taper plan ----
-  // 1. Pills to plan = whole 15 mg pills left in the target (total - taken).
-  // 2. Each day gets a whole number of pills, never more than the daily
-  //    allowance. Today and any other part-day also can't go faster than the
-  //    allowance pace (e.g. 75 mg/day around the clock = one pill per 4h48m),
-  //    counting from one full gap after the last dose.
-  // 3. The taper setting tilts the counts towards earlier days; days with
-  //    more pills come first, so the gaps only ever get longer.
-  // 4. A day's pills are evenly spaced across that day (around the clock or
-  //    waking hours). Pills that can't fit are reported, not squeezed in.
+  // 1. mg to plan = the target total minus everything taken, minus any extra
+  //    you chose to keep back, in 15 mg steps (30 mg steps if out of 15s).
+  // 2. Each day has up to mgPerDay / 15 dose times (5 at 75 mg/day), never
+  //    closer together than the allowance pace (24 h / 5 = 4h48m around the
+  //    clock), counting from one full gap after the last dose. A dose is one
+  //    15 or 30 mg pill, so a day holds at most 5 x 30 = 150 mg with 30s on
+  //    hand, 75 mg with 15s only.
+  // 3. Day totals follow a curve from your recent level (last 3 finished
+  //    days) down to the end point, adding up exactly to what's left. The
+  //    shape slider runs from a straight line, its start set so the drop into
+  //    the plan matches the drops within it (smallest drops), to holding your
+  //    recent level as long as the total allows and then dropping hard.
+  // 4. Whole days never go back up. A day's doses are evenly spaced, with
+  //    any 30s spread among the 15s. Doses that can't fit are reported, not
+  //    squeezed in.
   function buildPlan(m) {
-    const PILL = 15, MIN = 60000, p = state.plan, nowT = m.now.getTime();
-    const out = { days: [], pills: 0, unplanned: 0, remainderMg: 0, paceMin: 0 };
+    const MIN = 60000, p = state.plan, nowT = m.now.getTime();
+    const has15 = p.pills[15] !== false, has30 = p.pills[30] !== false;
+    const g = has15 ? 15 : 30, big = has30 ? 30 : 15;
+    const out = { days: [], doses: 0, mg: 0, n30: 0, unplannedMg: 0, remainderMg: 0, paceMin: 0, grain: g, recent: [] };
     if (m.now >= m.end) return out;
     const budget = Math.max(0, m.total - m.taken);
-    // Keep the chosen surplus (15 mg steps) back from the pills to plan.
-    out.reserve = Math.min(Math.max(0, Number(p.surplus) || 0), Math.floor(budget / PILL + 1e-9) * PILL);
-    const N = Math.floor((budget - out.reserve) / PILL + 1e-9);
-    out.remainderMg = Math.round(budget - out.reserve - N * PILL);
+    // Keep the chosen surplus (15 mg steps) back from what's planned.
+    out.reserve = Math.min(Math.max(0, Number(p.surplus) || 0), Math.floor(budget / 15 + 1e-9) * 15);
+    const U = Math.floor((budget - out.reserve) / g + 1e-9);
+    out.remainderMg = Math.round(budget - out.reserve - U * g);
     const clock = p.mode !== 'awake';
     const [wh, wm] = p.wake.split(':').map(Number), [sh, sm] = p.sleep.split(':').map(Number);
-    const cap = Math.floor(m.s.mgPerDay / PILL + 1e-9);
+    const slots = Math.max(1, Math.floor(m.s.mgPerDay / 15 + 1e-9));
+    out.slots = slots;
     const lastDose = m.counted.length ? m.counted[m.counted.length - 1].date.getTime() : null;
 
     const days = [];
@@ -770,119 +814,204 @@
         if (z <= w) z.setDate(z.getDate() + 1); // bedtime after midnight
       }
       const full = (z - w) / MIN;                 // minutes in a whole day's window
-      const pace = full / Math.max(1, cap);       // allowance pace: fastest allowed gap
+      const pace = full / slots;                  // allowance pace: fastest allowed gap
       const isToday = day.toDateString() === m.now.toDateString();
       let a = Math.max(w.getTime(), m.start.getTime());
       if (isToday) a = Math.max(a, nowT, lastDose ? lastDose + pace * MIN : 0);
       const b = Math.min(z.getTime(), m.end.getTime());
       const avail = Math.max(0, (b - a) / MIN);
-      let dcap = isToday ? Math.min(cap, Math.max(0, Math.floor(Math.max(0, m.leftToday) / PILL + 1e-9))) : cap;
       const part = avail < full - 1;
-      if (b <= a) dcap = 0;
-      else if (part) dcap = Math.min(dcap, Math.floor(avail / pace + 1e-9) + 1);
-      days.push({ day: new Date(day), wStart: w.getTime(), a, b, avail, full, pace, part, isToday, cap: dcap, count: 0, times: [],
-        takenToday: isToday ? m.doses.filter(x => x.date.toDateString() === day.toDateString() && x.date <= m.now) : [] });
+      let dslots = slots;
+      if (b <= a) dslots = 0;
+      else if (part) dslots = Math.min(slots, Math.floor(avail / pace + 1e-9) + 1);
+      const taken = isToday ? m.doses.filter(x => x.date.toDateString() === day.toDateString() && x.date <= m.now) : [];
+      days.push({ day: new Date(day), wStart: w.getTime(), a, b, avail, full, pace, part, isToday, slots: dslots,
+        taken, t0: taken.reduce((s, x) => s + x.mg, 0), units: 0, mg: 0, count: 0, times: [], doses: [], gaps: [] });
       if (!out.paceMin && !part) out.paceMin = pace;
     }
     // A part-day (today) has to finish one full gap before the next day's
-    // earliest possible pill (half a gap into that day at the allowance pace).
+    // earliest possible dose (half a gap into that day at the allowance pace).
     for (let k = 0; k + 1 < days.length; k++) {
       const d = days[k], e = days[k + 1];
       if (!d.part) continue;
-      const nextFirst = e.wStart + (e.full / Math.max(1, cap)) / 2 * MIN;
+      const nextFirst = e.wStart + (e.full / slots) / 2 * MIN;
       const nb = Math.min(d.b, nextFirst - d.pace * MIN);
       if (nb < d.b) {
         d.b = Math.max(d.a, nb);
         d.avail = Math.max(0, (d.b - d.a) / MIN);
-        d.cap = d.b <= d.a ? 0 : Math.min(d.cap, Math.floor(d.avail / d.pace + 1e-9) + 1);
+        d.slots = d.b <= d.a ? 0 : Math.min(d.slots, Math.floor(d.avail / d.pace + 1e-9) + 1);
       }
     }
 
-    // Ideal share per day from a linear taper along the timeline, then whole
-    // pills within each day's cap.
-    const f = Math.min(0.9, Math.max(0, Number(p.taper) || 0));
-    const T = days.reduce((s, d) => s + d.avail, 0);
-    let pos = 0;
-    for (const d of days) { d.want = d.avail * (1 - f * (pos + d.avail / 2) / (T || 1)); pos += d.avail; }
-    const W = days.reduce((s, d) => s + d.want, 0);
-    for (const d of days) { d.want = W ? N * d.want / W : 0; d.count = Math.min(d.cap, Math.floor(d.want + 1e-9)); }
-    let rem = N - days.reduce((s, d) => s + d.count, 0);
+    if (!out.paceMin && days.length) out.paceMin = days[0].pace;
+    // Recent level: what the last 3 finished days in this period averaged.
+    const todayMid = new Date(m.now); todayMid.setHours(0, 0, 0, 0);
+    for (let k = 1; k <= 3; k++) {
+      const d0 = new Date(todayMid); d0.setDate(d0.getDate() - k);
+      const d1 = new Date(d0); d1.setDate(d1.getDate() + 1);
+      if (d1 <= m.start || d1 > m.now) break;
+      out.recent.push({ day: d0, mg: m.counted.filter(x => x.date >= d0 && x.date < d1).reduce((s, x) => s + x.mg, 0) });
+    }
+    const D = days.length, target = U * g;
+    const capMg = d => d.slots * big;
+    const maxDay = slots * big;
+    const t0sum = days.reduce((s, d) => s + d.t0, 0);
+    const mean = D ? (target + t0sum) / D : 0;
+    const recentAvg = out.recent.length ? out.recent.reduce((s, r) => s + r.mg, 0) / out.recent.length : m.s.mgPerDay;
+    const L = Math.min(maxDay, Math.max(mean, recentAvg));
+    // Smooth end: a straight line whose first step down from L equals each
+    // daily step after it. Aggressive end: start at L and keep it.
+    const shape = Math.min(1, Math.max(0, Number(p.shape) || 0));
+    const a0 = D > 1 ? (L * (D - 1) + 2 * mean) / (D + 1) : mean;
+    let a = a0 + shape * (L - a0);
+    const pw = Math.pow(16, shape);               // 1 = straight line, 16 = flat then a cliff
+    const xs = days.map((_, k) => (k + 0.5) / Math.max(1, D));
+    const level = (a, A, k) => Math.min(capMg(days[k]), Math.max(0, a - A * xs[k] ** pw - days[k].t0));
+    const sumAt = (a, A) => days.reduce((s, _, k) => s + level(a, A, k), 0);
+    // Smallest x in [lo, hi] where tooLow(x) is false.
+    const solve = (tooLow, lo, hi) => { for (let i = 0; i < 80; i++) { const mid = (lo + hi) / 2; if (tooLow(mid)) lo = mid; else hi = mid; } return hi; };
+    let A = 0;
+    const BIG = 1e7;
+    if (sumAt(a, 0) < target) a = solve(x => sumAt(x, 0) < target, a, maxDay + t0sum + 1);
+    else if (sumAt(a, BIG) > target) a = solve(x => sumAt(x, 0) < target, 0, a);
+    else A = solve(y => sumAt(a, y) > target, 0, BIG);
+    days.forEach((d, k) => {
+      d.cap = Math.floor(capMg(d) / g + 1e-9);
+      d.want = level(a, A, k) / g;
+      d.units = Math.min(d.cap, Math.floor(d.want + 1e-9));
+    });
+    // Whole doses: largest remainders first, within each day's room.
+    let rem = U - days.reduce((s, d) => s + d.units, 0);
     while (rem > 0) {
       let best = null;
-      for (const d of days) if (d.count < d.cap && (!best || d.want - d.count > best.want - best.count + 1e-9)) best = d;
+      for (const d of days) if (d.units < d.cap && (!best || d.want - d.units > best.want - best.units + 1e-9)) best = d;
       if (!best) break;
-      best.count++; rem--;
+      best.units++; rem--;
     }
-    out.unplanned = rem;
-    // Taper: among whole days, the bigger counts go first.
+    out.unplannedMg = Math.max(0, rem) * g;
+    // Taper: among whole days, the bigger totals go first.
     const whole = days.filter(d => !d.part);
-    const counts = whole.map(d => d.count).sort((x, y) => y - x);
-    whole.forEach((d, k) => { d.count = counts[k]; });
+    const units = whole.map(d => d.units).sort((x, y) => y - x);
+    whole.forEach((d, k) => { d.units = units[k]; });
 
     for (const d of days) {
-      if (!d.count) { d.gaps = []; continue; }
+      d.mg = d.units * g;
+      // As many doses as there are slots for, so 15s where possible; any
+      // extra mg turns some of them into 30s.
+      let n30;
+      if (!has15) { d.count = d.units; n30 = d.count; }
+      else if (!has30) { d.count = d.units; n30 = 0; }
+      else { d.count = Math.min(d.units, d.slots); n30 = d.units - d.count; }
+      if (!d.count) continue;
+      const is30 = new Array(d.count).fill(false);
+      for (let j = 0; j < n30; j++) is30[Math.round((j + 0.5) * d.count / n30 - 0.5)] = true;
       const span = d.b - d.a;
       const ms = [];
       if (d.part) {
         // From the first allowed moment, no closer than the allowance pace.
-        const g = d.count > 1 ? Math.max(d.pace * MIN, span / d.count) : 0;
-        for (let k = 0; k < d.count; k++) ms.push(d.a + g * k);
+        const gap = d.count > 1 ? Math.max(d.pace * MIN, span / d.count) : 0;
+        for (let k = 0; k < d.count; k++) ms.push(d.a + gap * k);
       } else {
-        const g = span / d.count;
-        for (let k = 0; k < d.count; k++) ms.push(d.a + g * (k + 0.5));
+        const gap = span / d.count;
+        for (let k = 0; k < d.count; k++) ms.push(d.a + gap * (k + 0.5));
       }
       // Round to 5 minutes on the absolute clock, so the repeated hour on the
       // daylight-saving night can't snap a time to the wrong 1:30 AM.
       d.times = ms.map(x => new Date(Math.round(x / (5 * MIN)) * 5 * MIN));
+      d.doses = d.times.map((t, k) => ({ t, mg: is30[k] ? 30 : 15 }));
       const r = d.times.map(t => t.getTime());
       d.gaps = r.slice(1).map((t, k) => (t - r[k]) / MIN);
+      out.n30 += n30;
     }
     out.days = days;
-    out.pills = days.reduce((s, d) => s + d.count, 0);
+    out.doses = days.reduce((s, d) => s + d.count, 0);
+    out.mg = days.reduce((s, d) => s + d.mg, 0);
     return out;
   }
 
   const hm = mins => `${Math.floor(mins / 60)}h ${String(Math.round(mins % 60)).padStart(2, '0')}m`;
 
+  let planNextMg = 15; // what "Log … now" logs: the next planned dose
   function renderPlan(m) {
     const plan = buildPlan(m);
-    const next = plan.days.flatMap(d => d.times)[0];
+    const p = state.plan;
+    const all = plan.days.flatMap(d => d.doses);
+    const next = all[0];
     const nextEl = document.getElementById('p-next');
+    planNextMg = next ? next.mg : plan.grain;
+    document.getElementById('p-next-l').textContent = next ? `Next dose · ${next.mg} mg` : 'Next dose';
+    document.getElementById('p-log').textContent = `Log ${planNextMg} mg now`;
     if (next) {
-      nextEl.textContent = fmtTime(next);
-      const mins = Math.round((next - m.now) / 60000);
+      nextEl.textContent = fmtTime(next.t);
+      const mins = Math.round((next.t - m.now) / 60000);
       document.getElementById('p-next-sub').textContent =
-        `${next.toDateString() === m.now.toDateString() ? 'today' : fmtDate(next)} · ${mins <= 0 ? 'due now' : 'in ' + hm(mins)}`;
+        `${next.t.toDateString() === m.now.toDateString() ? 'today' : fmtDate(next.t)} · ${mins <= 0 ? 'due now' : 'in ' + hm(mins)}`;
     } else {
       nextEl.textContent = '—';
-      document.getElementById('p-next-sub').textContent = m.now >= m.end ? 'The period has ended.' : 'No pills left to plan before your end point.';
+      document.getElementById('p-next-sub').textContent = m.now >= m.end ? 'The period has ended.' : 'Nothing left to plan before your end point.';
     }
     const appt = fmtDate(m.end);
-    const planMg = plan.pills * 15;
-    const hrs = state.plan.mode === 'awake' ? `between ${fmtTime(parseLocal('2000-01-01T' + state.plan.wake))} and ${fmtTime(parseLocal('2000-01-01T' + state.plan.sleep))}` : 'around the clock';
-    let sum = `<b>${plan.pills} pills</b> (${fmt(planMg)} mg) planned ${hrs} through <b>${appt}</b>, never more than ${fmt(m.s.mgPerDay)} mg in a day. ` +
-      `With the ${fmt(m.taken)} mg already taken that's <b>${fmt(m.taken + planMg)} of ${fmt(m.total)} mg</b>.`;
-    if (plan.reserve) sum += ` That leaves <b>${fmt(plan.reserve)} mg (${plan.reserve / 15} pill${plan.reserve === 15 ? '' : 's'}) extra</b> at the end, as chosen.`;
-    if (plan.remainderMg) sum += ` The last ${plan.remainderMg} mg isn't a whole pill, so it's left out.`;
-    if (plan.unplanned) sum += ` <b>${plan.unplanned} pill${plan.unplanned === 1 ? '' : 's'} (${plan.unplanned * 15} mg) can't fit</b> without spacing pills closer than every ${hm(plan.paceMin)} (your ${fmt(m.s.mgPerDay)} mg/day pace), so you'd finish ${plan.unplanned * 15} mg under target.`;
+    const hrs = p.mode === 'awake' ? `between ${fmtTime(parseLocal('2000-01-01T' + p.wake))} and ${fmtTime(parseLocal('2000-01-01T' + p.sleep))}` : 'around the clock';
+    const n15 = plan.doses - plan.n30;
+    const mix = plan.n30 && n15 ? `: ${plan.n30} × 30 + ${n15} × 15` : plan.n30 ? ', all 30s' : plan.doses ? ', all 15s' : '';
+    let sum = `<b>${plan.doses} dose${plan.doses === 1 ? '' : 's'}</b> (${fmt(plan.mg)} mg${mix}) planned ${hrs} through <b>${appt}</b>. ` +
+      `With the ${fmt(m.taken)} mg already taken that's <b>${fmt(m.taken + plan.mg)} of ${fmt(m.total)} mg</b>.`;
+    if (plan.reserve) sum += ` That leaves <b>${fmt(plan.reserve)} mg extra</b> at the end, as chosen.`;
+    if (plan.remainderMg) sum += ` The last ${plan.remainderMg} mg doesn't make a whole ${plan.grain} mg dose, so it's left out.`;
+    if (plan.unplannedMg) sum += ` <b>${plan.unplannedMg} mg can't fit</b> without doses closer than every ${hm(plan.paceMin)} (at most ${plan.slots} a day, one pill each), so you'd finish ${plan.unplannedMg} mg under target.`;
     document.getElementById('p-sum').innerHTML = sum;
 
-    const nowT = m.now.getTime();
-    document.getElementById('p-days').innerHTML = plan.days.filter(d => d.count || d.takenToday.length).map(d => {
+    // Shape: the slider, a bar per day, and what the shape means in numbers.
+    const shapeEl = document.getElementById('p-shape');
+    if (document.activeElement !== shapeEl) shapeEl.value = String(Math.round((Number(p.shape) || 0) * 100));
+    const sv = Number(shapeEl.value);
+    document.getElementById('p-shape-v').textContent = sv <= 10 ? 'Smoothest' : sv < 40 ? 'Gentle' : sv < 65 ? 'In between' : sv < 90 ? 'Aggressive' : 'Most aggressive';
+    const short = d => d.toLocaleDateString(undefined, { weekday: 'short' });
+    const seq = plan.days.map(d => ({ day: d.day, mg: d.t0 + d.mg }));
+    const yesterday = plan.recent[0];
+    const chain = yesterday && seq.length && seq[0].day.toDateString() === m.now.toDateString() ? [yesterday, ...seq] : seq;
+    let drop = null;
+    for (let k = 1; k < chain.length; k++) {
+      const dd = chain[k - 1].mg - chain[k].mg;
+      if (dd > 0 && (!drop || dd > drop.mg)) drop = { mg: dd, from: chain[k - 1], to: chain[k] };
+    }
+    const top = Math.max(m.s.mgPerDay, ...seq.map(x => x.mg), 1);
+    const H = 64;
+    document.getElementById('p-bars').innerHTML = seq.length ? `<div class="area">` +
+      `<div class="allow" style="bottom:${(m.s.mgPerDay / top * H).toFixed(1)}px"></div>` +
+      seq.map(x => `<div class="b${x.mg > m.s.mgPerDay ? ' over' : x.mg ? '' : ' zero'}" style="height:${(x.mg / top * H).toFixed(1)}px"><em>${fmt(x.mg)}</em></div>`).join('') +
+      `</div><div class="days">${seq.map(x => `<span>${x.day.toDateString() === m.now.toDateString() ? 'now' : x.day.getDate()}</span>`).join('')}</div>` : '';
+    const over = seq.filter(x => x.mg > m.s.mgPerDay).length;
+    const zeros = seq.filter(x => !x.mg).length;
+    let note = '';
+    if (seq.length) {
+      if (plan.recent.length) note += `Your last ${plan.recent.length === 1 ? 'day' : plan.recent.length + ' days'} averaged <b>${fmt(plan.recent.reduce((s, r) => s + r.mg, 0) / plan.recent.length)} mg</b>. `;
+      note += `This goes from <b>${fmt(seq[0].mg)}</b> to <b>${fmt(seq[seq.length - 1].mg)} mg</b> a day`;
+      note += drop ? `; biggest one-day drop <b>${fmt(drop.mg)} mg</b> (${short(drop.from.day)} → ${short(drop.to.day)}).` : '.';
+      if (over) note += ` ${over} day${over === 1 ? ' is' : 's are'} over your ${fmt(m.s.mgPerDay)} mg allowance.`;
+      if (zeros) note += ` <b>${zeros} day${zeros === 1 ? '' : 's'} with nothing left.</b>`;
+      if ((drop && drop.mg >= 45) || zeros) note += ` A drop that big can hit hard. Check it with your prescriber first.`;
+    }
+    document.getElementById('p-shape-note').innerHTML = note;
+
+    const shortGap = x => `${Math.floor(x / 60)}h${String(Math.round(x % 60)).padStart(2, '0')}`;
+    // On the night clocks go back, 1:00-1:59 AM happens twice; mark times
+    // in the second pass so they aren't taken an hour early.
+    const repeated = t => new Date(t.getTime() - 3600000).getHours() === t.getHours();
+    const tag = mg => mg === 15 ? '' : `<i>${fmt(mg)}</i>`;
+    document.getElementById('p-days').innerHTML = plan.days.map(d => {
       const label = d.isToday ? 'Today' : d.day.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
-      const total = (d.takenToday.reduce((a, x) => a + x.mg, 0)) + d.count * 15;
+      const total = d.t0 + d.mg;
       const lo = Math.min(...d.gaps), hi = Math.max(...d.gaps);
-      const short = x => `${Math.floor(x / 60)}h${String(Math.round(x % 60)).padStart(2, '0')}`;
-      const every = d.gaps.length ? ` · every ${short(lo)}${hi - lo >= 5 ? '–' + short(hi) : ''}` : '';
-      // On the night clocks go back, 1:00-1:59 AM happens twice; mark times
-      // in the second pass so they aren't taken an hour early.
-      const repeated = t => new Date(t.getTime() - 3600000).getHours() === t.getHours();
+      const every = d.gaps.length ? ` · every ${shortGap(lo)}${hi - lo >= 5 ? '–' + shortGap(hi) : ''}` : '';
       const chips = [
-        ...d.takenToday.map(x => `<span class="t done">${fmtTime(x.date)} ✓</span>`),
-        ...d.times.map(t => `<span class="t${t === next ? ' next' : ''}">${fmtTime(t)}${repeated(t) ? '†' : ''}</span>`),
+        ...d.taken.map(x => `<span class="t done">${fmtTime(x.date)} ✓${tag(x.mg)}</span>`),
+        ...d.doses.map(x => `<span class="t${x === next ? ' next' : ''}" data-t="${x.t.getTime()}" data-mg="${x.mg}">${fmtTime(x.t)}${repeated(x.t) ? '†' : ''}${tag(x.mg)}</span>`),
       ].join('');
+      const empty = d.doses.length ? '' : `<div class="p-sum" style="font-size:13px;margin-top:4px">${d.isToday ? 'Nothing more today.' : 'Nothing left for this day.'}</div>`;
       const dst = d.times.some(repeated) ? `<div class="p-sum" style="font-size:12px;margin-top:6px">† Clocks go back an hour at 2 AM. Take this at the second ${fmtTime(d.times.find(repeated))}, after the change.</div>` : '';
-      return `<div class="pday"><div class="pday-h"><b>${label}</b><span>${fmt(total)} mg${every}</span></div><div class="times">${chips}</div>${dst}</div>`;
+      return `<div class="pday" data-mg="${total}"${d.part ? ' data-part="1"' : ''}><div class="pday-h"><b>${label}</b><span${total > m.s.mgPerDay ? ' class="over"' : ''}>${fmt(total)} mg${every}</span></div>` +
+        (chips ? `<div class="times">${chips}</div>` : '') + empty + dst + `</div>`;
     }).join('') || '<p class="empty">Nothing to plan.</p>';
 
     // Past days: each finished calendar day since the start, its total and
@@ -905,18 +1034,17 @@
     document.getElementById('p-past').innerHTML = rows.reverse().join('') || '<p class="empty">No finished days yet.</p>';
     document.getElementById('p-past-sum').textContent = rows.length ? `${fmt(sumMg)} of ${fmt(sumAllow)} mg` : '';
 
-    const p = state.plan;
     const wakeEl = document.getElementById('p-wake'), sleepEl = document.getElementById('p-sleep');
     if (document.activeElement !== wakeEl) wakeEl.value = p.wake;
     if (document.activeElement !== sleepEl) sleepEl.value = p.sleep;
-    document.querySelectorAll('#p-taper button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.taper) === Number(p.taper))));
     document.querySelectorAll('#p-mode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === (p.mode || 'clock'))));
+    document.querySelectorAll('#p-pills button').forEach(b => b.setAttribute('aria-pressed', String(p.pills[b.dataset.pill] !== false)));
     const sel = document.getElementById('p-surplus');
     const maxMg = Math.floor(Math.max(0, m.total - m.taken) / 15 + 1e-9) * 15;
     const want = Math.min(Number(p.surplus) || 0, maxMg);
     if (sel.options.length !== maxMg / 15 + 1) {
       sel.innerHTML = Array.from({ length: maxMg / 15 + 1 }, (_, k) =>
-        `<option value="${k * 15}">${k ? `+${k * 15} mg (${k} pill${k === 1 ? '' : 's'})` : '0 mg (land exactly)'}</option>`).join('');
+        `<option value="${k * 15}">${k ? `+${k * 15} mg` : '0 mg (land exactly)'}</option>`).join('');
     }
     if (document.activeElement !== sel) sel.value = String(want);
     document.getElementById('p-hours').hidden = p.mode !== 'awake';
@@ -1118,14 +1246,20 @@
   document.querySelectorAll('#p-mode button').forEach(btn => btn.addEventListener('click', () => {
     state.plan.mode = btn.dataset.mode; save(); render();
   }));
-  document.querySelectorAll('#p-taper button').forEach(btn => btn.addEventListener('click', () => {
-    state.plan.taper = Number(btn.dataset.taper); save(); render();
+  // The plan redraws live while you drag; it's saved when you let go.
+  const shapeEl = document.getElementById('p-shape');
+  shapeEl.addEventListener('input', () => { state.plan.shape = Number(shapeEl.value) / 100; renderPlan(model()); });
+  shapeEl.addEventListener('change', () => { state.plan.shape = Number(shapeEl.value) / 100; save(); render(); });
+  document.querySelectorAll('#p-pills button').forEach(btn => btn.addEventListener('click', () => {
+    const pills = state.plan.pills, k = btn.dataset.pill, other = k === '15' ? '30' : '15';
+    if (pills[k] !== false && pills[other] === false) { alert("Keep at least one strength on, or there's nothing to plan with."); return; }
+    pills[k] = pills[k] === false; save(); render();
   }));
   document.getElementById('p-log').addEventListener('click', () => {
-    const t = toLocalInput(new Date());
-    state.doses.push({ id: newId(), t, mg: 15 });
+    const t = toLocalInput(new Date()), mg = planNextMg;
+    state.doses.push({ id: newId(), t, mg });
     save(); render();
-    document.getElementById('p-next-sub').textContent = `Logged 15 mg at ${fmtTime(parseLocal(t))}. Plan updated.`;
+    document.getElementById('p-next-sub').textContent = `Logged ${mg} mg at ${fmtTime(parseLocal(t))}. Plan updated.`;
   });
 
   let rt;
