@@ -169,6 +169,9 @@
   .key i.ln-pt { position: relative; }
   .key i.ln-pt::after { content: ""; position: absolute; left: 3px; top: -2.5px; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
   .key span { color: var(--muted); }
+  .sleep-avg { margin: 12px 0 0; font-size: 14px; color: var(--text); }
+  .sleep-avg b { font-weight: 700; }
+  .sleep-avg span { color: var(--muted); }
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }
 
   .summary { font-size: 16px; line-height: 1.5; margin: 0; }
@@ -206,15 +209,12 @@
   .opts.five { grid-template-columns: repeat(5, 1fr); }
   .opts button { min-height: 54px; font-size: 18px; font-weight: 700; background: var(--chip); border: 1.5px solid transparent; font-variant-numeric: tabular-nums; }
   .opts button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-text); box-shadow: 0 0 18px rgba(0,200,5,.35); }
-  #ag-seg button[aria-pressed="true"] { border-color: var(--purple); background: var(--purple); color: #000; box-shadow: 0 0 18px rgba(178,107,255,.45); }
   .scale { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); margin-top: 8px; }
   .scale span:last-child { text-align: right; }
   .stepper { display: grid; grid-template-columns: 54px 1fr 54px; align-items: center; gap: 8px; }
   .stepper button { min-height: 54px; font-size: 24px; padding: 0; border-radius: 999px; }
   .stepper output { text-align: center; font-size: 34px; font-weight: 700; letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--green); text-shadow: 0 0 16px rgba(0,200,5,.35); }
   .hint { font-size: 13px; color: var(--muted); text-align: center; margin-top: 6px; }
-  .nap-note { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 54px; color: var(--muted); font-size: 15px; }
-  .nap-note .dot { box-shadow: 0 0 8px var(--nap); }
   .time-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; margin-top: 16px; }
   .time-row > div { min-width: 0; }
   #b-now { min-height: 48px; border-radius: 14px; }
@@ -342,15 +342,13 @@
   </section>
 
   <section class="chart-wrap">
-    <svg id="chart" role="img" aria-label="Last few days: mg left, doses, agitation, sleep and naps"></svg>
+    <svg id="chart" role="img" aria-label="Each day's total mg as a dot against a line at the daily allowance"></svg>
     <div class="since" id="since"></div>
     <div class="legend">
-      <span class="key" style="color:var(--red)"><i></i><span>Allowance</span></span>
-      <span class="key" style="color:var(--yellow)"><i class="ln-pt"></i><span>mg left · doses</span></span>
-      <span class="key" style="color:var(--purple)"><i class="ln-pt"></i><span>Agitation 1–5</span></span>
-      <span class="key" style="color:var(--green)"><i class="ln-pt"></i><span>Sleep h ÷ 2</span></span>
-      <span class="key" style="color:var(--nap)"><i class="pt"></i><span>Nap</span></span>
+      <span class="key" style="color:var(--red)"><i></i><span id="key-target">75 mg a day</span></span>
+      <span class="key" style="color:var(--yellow)"><i class="pt"></i><span>Each day's total (above = over, below = under)</span></span>
     </div>
+    <p class="sleep-avg" id="sleep-avg"></p>
   </section>
 
   <section class="card">
@@ -360,11 +358,9 @@
 
   <section class="card">
     <form id="log-form">
-      <div class="tabs" id="kind-tabs" role="group" aria-label="What to log">
+      <div class="tabs" id="kind-tabs" role="group" aria-label="What to log" style="grid-template-columns:1fr 1fr">
         <button type="button" data-kind="dose" aria-pressed="true">Dose</button>
-        <button type="button" data-kind="agitation" aria-pressed="false">Agitation</button>
         <button type="button" data-kind="sleep" aria-pressed="false">Sleep</button>
-        <button type="button" data-kind="nap" aria-pressed="false">Nap</button>
       </div>
 
       <div class="panel" data-panel="dose">
@@ -373,26 +369,13 @@
           <button type="button" data-mg="30" aria-pressed="false">30 mg</button>
         </div>
       </div>
-      <div class="panel" data-panel="agitation" hidden>
-        <div class="opts five" id="ag-seg" role="group" aria-label="Agitation">
-          <button type="button" data-ag="1" aria-pressed="false">1</button>
-          <button type="button" data-ag="2" aria-pressed="false">2</button>
-          <button type="button" data-ag="3" aria-pressed="false">3</button>
-          <button type="button" data-ag="4" aria-pressed="false">4</button>
-          <button type="button" data-ag="5" aria-pressed="false">5</button>
-        </div>
-        <div class="scale"><span>Calm</span><span>Very agitated</span></div>
-      </div>
       <div class="panel" data-panel="sleep" hidden>
         <div class="stepper">
           <button type="button" id="sl-minus" aria-label="Less sleep">−</button>
           <output id="sl-val" aria-live="polite">7 h</output>
           <button type="button" id="sl-plus" aria-label="More sleep">+</button>
         </div>
-        <div class="hint">Last night, 1–10 hours</div>
-      </div>
-      <div class="panel" data-panel="nap" hidden>
-        <div class="nap-note"><span class="dot" style="background:var(--nap)"></span>Marks a nap at the time below</div>
+        <div class="hint">Last night's sleep from your Apple Watch, 0–12 hours</div>
       </div>
 
       <div class="time-row">
@@ -437,7 +420,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-34';
+  const BUILD = '2026-10-25-35';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -733,6 +716,11 @@
     document.getElementById('hdr-date').textContent = fmtDate(m.now);
 
     renderChart(m);
+    document.getElementById('key-target').textContent = `${fmt(m.s.mgPerDay)} mg a day`;
+    const nights = m.sleep.filter(x => x.date >= m.start);
+    document.getElementById('sleep-avg').innerHTML = nights.length
+      ? `Sleep: <b>${fmt(nights.reduce((a, x) => a + Number(x.hours), 0) / nights.length, 1)} hours/night</b> on average since ${fmtDate(m.start)} <span>(Apple Watch, ${nights.length} night${nights.length === 1 ? '' : 's'})</span>`
+      : `Sleep: <span>log last night's hours from your Apple Watch below to see your average here.</span>`;
     renderHistory(m);
     renderPlan(m);
 
@@ -742,174 +730,52 @@
       `Build ${BUILD.split("-").pop()} · ${navigator.standalone ? 'Home Screen app' : 'Safari tab'} · ${n} dose${n === 1 ? '' : 's'} saved on this device`;
   }
 
-  // Value of a stepped/linear series at time t.
-  function valueAt(pts, t) {
-    if (t <= pts[0][0]) return pts[0][1];
-    for (let i = pts.length - 1; i >= 0; i--) {
-      if (pts[i][0] <= t) {
-        const nx = pts[i + 1];
-        if (!nx || nx[0] === pts[i][0]) return pts[i][1];
-        return pts[i][1] + (nx[1] - pts[i][1]) * (t - pts[i][0]) / (nx[0] - pts[i][0]);
-      }
-    }
-    return pts[pts.length - 1][1];
-  }
-
+  // One dot per day at that day's total, against a flat red line at the
+  // daily allowance: above the line is over, below is under. The mg scale is
+  // there only to keep the dots in proportion, so it isn't labelled.
   function renderChart(m) {
     const svg = document.getElementById('chart');
     const W = Math.max(280, Math.round(svg.getBoundingClientRect().width));
-    const H = Math.round(Math.min(420, Math.max(260, W * 0.82)));
-    const pad = { l: 36, r: 20, t: 24, b: 26 };
+    const H = Math.round(Math.min(300, Math.max(200, W * 0.62)));
+    const pad = { l: 14, r: 14, t: 22, b: 28 };
     const css = getComputedStyle(document.documentElement);
     const c = k => css.getPropertyValue(k).trim();
-    const bg = c('--bg'), muted = c('--muted'), grid = c('--grid');
-    const nowT = m.now.getTime();
-
-    // Window: midnight two days before today (not before "Counting from")
-    // through 6 hours from now.
-    const from = new Date(m.now); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - 2);
-    const x0 = Math.max(m.start.getTime(), from.getTime());
-    const x1 = Math.max(nowT + 6 * 3600000, x0 + DAY);
-    const X = t => pad.l + (t - x0) / (x1 - x0) * (W - pad.l - pad.r);
-
-    // Yellow runs on to "now" (or the last dose) so its end matches the gap marker.
-    const yellow = [...m.yellow];
-    const lastY = yellow[yellow.length - 1];
-    yellow.push([Math.max(nowT, lastY[0]), lastY[1]]);
-
-    // Left axis: mg, scaled to what's visible in the window.
-    const inWin = pts => pts.filter(p => p[0] >= x0 && p[0] <= x1).map(p => p[1]);
-    const vis = [...inWin(m.red), ...inWin(yellow), valueAt(m.red, x0), valueAt(m.red, x1), valueAt(yellow, x0), valueAt(yellow, Math.min(x1, yellow[yellow.length - 1][0])), m.expected, Math.max(0, m.remaining)];
-    let lo = Math.max(0, Math.min(...vis)), hi = Math.max(...vis);
-    if (hi - lo < 60) { const mid = (hi + lo) / 2; lo = Math.max(0, mid - 30); hi = lo + 60; }
-    const raw = (hi - lo) / 5, mag = 10 ** Math.floor(Math.log10(raw));
-    const yStep = [1, 2, 5, 10].map(k => k * mag).find(v => v >= raw);
-    lo = Math.floor(lo / yStep) * yStep; hi = Math.ceil(hi / yStep) * yStep;
-    const plotH = H - pad.t - pad.b;
-    const base = H - pad.b;
-    const Y = v => pad.t + (1 - (v - lo) / (hi - lo)) * plotH;
-    // Right axis: agitation 1-5 and sleep hours / 2 on a shared 0-5 scale.
-    const R = v => pad.t + (1 - v / 5) * plotH;
+    const bg = c('--bg'), muted = c('--muted');
     const r1 = n => Math.round(n * 10) / 10;
 
-    // Soft neon glow for lines, and a fade under the yellow line.
-    let out = `<defs>` +
-      `<clipPath id="plot"><rect x="${pad.l}" y="${pad.t - 8}" width="${W - pad.l - pad.r}" height="${plotH + 16}" /></clipPath>` +
-      `<filter id="glow" filterUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}">` +
+    const day0 = new Date(m.start); day0.setHours(0, 0, 0, 0);
+    const lastDay = new Date(m.now < m.end ? m.now : new Date(m.end.getTime() - 1)); lastDay.setHours(0, 0, 0, 0);
+    const days = [];
+    for (const d = new Date(day0); d <= lastDay; d.setDate(d.getDate() + 1)) {
+      const key = d.toDateString();
+      days.push({ day: new Date(d), mg: m.counted.filter(x => x.date.toDateString() === key).reduce((a, x) => a + x.mg, 0), today: key === m.now.toDateString() });
+    }
+    if (!days.length) { svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.innerHTML = ''; return; }
+    const target = m.s.mgPerDay;
+    const hi = Math.max(target * 1.6, ...days.map(d => d.mg + 15));
+    const plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b, base = H - pad.b;
+    const slot = plotW / days.length;
+    const X = k => pad.l + slot * (k + 0.5);
+    const Y = v => pad.t + (1 - v / hi) * plotH;
+
+    let out = `<defs><filter id="glow" filterUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}">` +
       `<feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="b" />` +
       `<feComponentTransfer in="b" result="bf"><feFuncA type="linear" slope="1.4" /></feComponentTransfer>` +
-      `<feMerge><feMergeNode in="bf" /><feMergeNode in="SourceGraphic" /></feMerge></filter>` +
-      `<linearGradient id="yfill" gradientUnits="userSpaceOnUse" x1="0" y1="${pad.t}" x2="0" y2="${base}">` +
-      `<stop offset="0" stop-color="${c('--yellow')}" stop-opacity=".26" />` +
-      `<stop offset=".75" stop-color="${c('--yellow')}" stop-opacity=".04" />` +
-      `<stop offset="1" stop-color="${c('--yellow')}" stop-opacity="0" /></linearGradient>` +
-      `</defs>`;
-    const label = (x, y, txt, anchor = 'start', extra = '') =>
-      `<text x="${r1(x)}" y="${r1(y)}" text-anchor="${anchor}" font-size="10" fill="${muted}"${extra}>${txt}</text>`;
-    // Faint horizontal guides, mg on the left
-    for (let v = lo; v <= hi + 1e-9; v += yStep) {
-      if (v > lo) out += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${r1(Y(v))}" y2="${r1(Y(v))}" stroke="${grid}" />`;
-      out += label(pad.l - 8, Y(v) + 3.5, fmt(v), 'end');
-    }
-    // 1-5 on the right (agitation, sleep h / 2)
-    for (let v = 1; v <= 5; v++) out += label(W - pad.r + 7, R(v) + 3.5, v);
-    // Day boundaries: a faint line at each midnight, the date just after it
-    for (let d = new Date(x0); d.getTime() <= x1; d.setHours(d.getHours() + 6)) {
-      d.setMinutes(0, 0, 0); d.setHours(Math.floor(d.getHours() / 6) * 6);
-      if (d.getTime() < x0 || d.getHours() !== 0) continue;
-      const x = r1(X(d.getTime()));
-      out += `<line x1="${x}" x2="${x}" y1="${pad.t}" y2="${base}" stroke="${grid}" stroke-dasharray="2 4" />`;
-      out += label(x + 4, H - 8, `${d.getMonth() + 1}/${d.getDate()}`, 'start', ' font-weight="600"');
-    }
-    out += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${base}" y2="${base}" stroke="${grid}" />`;
-
-    // now marker
-    const nx = r1(X(nowT));
-    out += `<line x1="${nx}" x2="${nx}" y1="${pad.t - 4}" y2="${base}" stroke="${muted}" stroke-dasharray="2 4" opacity=".7" />`;
-    out += label(nx, pad.t - 9, 'now', 'middle', ' font-weight="600" letter-spacing=".04em"');
-
-    const ey = Y(m.expected), ay = Y(Math.max(0, m.remaining));
-    // Balance pill: drawn where the gap between the red and yellow lines really
-    // is the balance -- at the start of today (where finished days end), or at
-    // the end point once the period is over. Placed first so the agitation note
-    // can steer clear of it.
-    const bm = m.balMark && m.balMark.t >= x0 && m.balMark.t <= x1 ? m.balMark : null;
-    const bx = bm ? r1(X(bm.t)) : nx;
-    const bRed = bm ? Y(bm.red) : ey, bYel = bm ? Y(Math.max(0, bm.yellow)) : ey;
-    const balColor = m.balance > 0 ? c('--good') : m.balance < 0 ? c('--bad') : c('--text');
-    const lbl = signedMg(m.balance);
-    const pw = lbl.length * 7.6 + 30, ph = 20;
-    const right = bx + 8 + pw <= W - pad.r - 2;
-    const px = right ? bx + 8 : bx - 8 - pw;
-    const gap = Math.abs(bRed - bYel);
-    let py = gap >= ph + 8 ? (bRed + bYel) / 2 - ph / 2 : Math.min(bRed, bYel) - ph - 8;
-    py = Math.max(pad.t, Math.min(base - ph - 2, py));
-    const pill = bm ? { x0: px, x1: px + pw, y0: py, y1: py + ph } : { x0: -1e4, x1: -1e4, y0: -1e4, y1: -1e4 };
-
-    out += `<g clip-path="url(#plot)">`;
-    const path = (pts, yf) => pts.map(([t, v], i) => `${i ? 'L' : 'M'}${r1(X(t))},${r1(yf(v))}`).join(' ');
-    const yv = v => Y(Math.max(0, v));
-    // yellow area fade, then red (allowance) and yellow (actually left)
-    out += `<path d="${path(yellow, yv)} L${r1(X(yellow[yellow.length - 1][0]))},${base} L${r1(X(yellow[0][0]))},${base} Z" fill="url(#yfill)" stroke="none" />`;
-    out += `<path d="${path(m.red, Y)}" fill="none" stroke="${c('--red')}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" filter="url(#glow)" />`;
-    out += `<path d="${path(yellow, yv)}" fill="none" stroke="${c('--yellow')}" stroke-width="2.75" stroke-linejoin="round" stroke-linecap="round" filter="url(#glow)" />`;
-    // balance: the gap between allowance and actual where finished days end
-    if (bm && gap > 1) {
-      out += `<line x1="${bx}" x2="${bx}" y1="${r1(bRed)}" y2="${r1(bYel)}" stroke="${balColor}" stroke-width="2.5" filter="url(#glow)" />`;
-      out += `<circle cx="${bx}" cy="${r1(bRed)}" r="3.5" fill="${c('--red')}" stroke="${bg}" stroke-width="1.5" />`;
-      out += `<circle cx="${bx}" cy="${r1(bYel)}" r="3.5" fill="${c('--yellow')}" stroke="${bg}" stroke-width="1.5" />`;
-    }
-    out += `<circle cx="${nx}" cy="${r1(ey)}" r="4" fill="${c('--red')}" stroke="${bg}" stroke-width="2" />`;
-    let level = m.total;
-    for (const d of m.counted) {
-      level -= d.mg;
-      out += `<circle cx="${r1(X(d.date.getTime()))}" cy="${r1(yv(level))}" r="4.5" fill="${c('--yellow')}" stroke="${bg}" stroke-width="2" />`;
-    }
-    // purple: agitation, green: sleep / 2
-    const series = (list, val, color) => {
-      if (!list.length) return '';
-      const pts = list.map(x => [x.date.getTime(), val(x)]);
-      return (pts.length > 1 ? `<path d="${path(pts, R)}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity=".95" filter="url(#glow)" />` : '') +
-        pts.map(([t, v]) => `<circle cx="${r1(X(t))}" cy="${r1(R(v))}" r="4.5" fill="${color}" stroke="${bg}" stroke-width="2" />`).join('');
-    };
-    out += series(m.sleep, x => x.hours / 2, c('--green'));
-    out += series(m.agitation, x => x.level, c('--purple'));
-    // naps: a light-blue dot at the time, no line, just above the axis
-    for (const n of m.naps) out += `<circle cx="${r1(X(n.date.getTime()))}" cy="${r1(R(0.35))}" r="5" fill="${c('--nap')}" stroke="${bg}" stroke-width="2" />`;
-
-    out += `<circle class="pulse" cx="${nx}" cy="${r1(ay)}" r="5" fill="none" stroke="${c('--yellow')}" stroke-width="1.5" />`;
-    out += `<circle cx="${nx}" cy="${r1(ay)}" r="5.5" fill="${c('--yellow')}" stroke="${bg}" stroke-width="2" />`;
-    out += `</g>`;
-
-    // Latest agitation point: small note with the time since the dose before it
-    // and that dose's amount (plus the day's running total at that dose).
-    const lastAg = m.agitation[m.agitation.length - 1];
-    const prevDose = lastAg && [...m.doses].reverse().find(d => d.date <= lastAg.date);
-    if (prevDose) {
-      const mins = Math.round((lastAg.date - prevDose.date) / 60000);
-      const l1 = `${Math.floor(mins / 60)}h ${mins % 60}m after ${fmt(prevDose.mg)} mg dose`;
-      const l2 = `${fmt(prevDose.dayTotal)} mg ${prevDose.date.toDateString() === m.now.toDateString() ? 'today' : 'that day'} by then`;
-      const ax = X(lastAg.date.getTime()), py0 = R(lastAg.level);
-      const nw = Math.max(l1.length, l2.length) * 5.6;
-      const left = ax - 10 - nw >= pad.l + 2;
-      const tx = r1(left ? ax - 10 : Math.min(ax + 10, W - pad.r - nw));
-      const box = top => ({ x0: left ? tx - nw : tx, x1: left ? tx : tx + nw, y0: top, y1: top + 26 });
-      const hits = b => b.x0 < pill.x1 + 4 && b.x1 > pill.x0 - 4 && b.y0 < pill.y1 + 4 && b.y1 > pill.y0 - 4;
-      // Below a high point, above a low one; flip if it would hit the balance pill.
-      let top = lastAg.level >= 3.5 ? py0 + 9 : py0 - 35;
-      if (hits(box(top))) top = lastAg.level >= 3.5 ? py0 - 35 : py0 + 9;
-      top = Math.max(pad.t - 4, Math.min(base - 30, top));
-      const halo = `stroke="${bg}" stroke-width="4" stroke-linejoin="round" paint-order="stroke"`;
-      out += `<text x="${tx}" y="${r1(top + 9)}" text-anchor="${left ? 'end' : 'start'}" font-size="10" ${halo}>` +
-        `<tspan x="${tx}" fill="${c('--text')}" font-weight="600">${l1}</tspan>` +
-        `<tspan x="${tx}" dy="12" fill="${muted}">${l2}</tspan></text>`;
-    }
-
-    // signed balance pill
-    if (bm) out += `<rect x="${r1(px)}" y="${r1(py)}" width="${r1(pw)}" height="${ph}" rx="${ph / 2}" fill="${bg}" />`;
-    if (bm) out += `<rect x="${r1(px)}" y="${r1(py)}" width="${r1(pw)}" height="${ph}" rx="${ph / 2}" fill="${balColor}" fill-opacity=".16" stroke="${balColor}" stroke-opacity=".55" />`;
-    if (bm) out += `<text x="${r1(px + pw / 2)}" y="${r1(py + 14)}" text-anchor="middle" font-size="12" font-weight="700" fill="${balColor}">${lbl}<tspan font-size="10" font-weight="600" dx="2">mg</tspan></text>`;
-
+      `<feMerge><feMergeNode in="bf" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>`;
+    // Red: the daily allowance, straight across.
+    const ty = r1(Y(target));
+    out += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${ty}" y2="${ty}" stroke="${c('--red')}" stroke-width="2.25" stroke-linecap="round" filter="url(#glow)" />`;
+    // Yellow: each day's total, with a faint stem from the line to the dot.
+    const every = Math.max(1, Math.ceil(days.length * 30 / plotW));
+    days.forEach((d, k) => {
+      const x = r1(X(k)), y = r1(Y(d.mg));
+      if (Math.abs(y - ty) > 1) out += `<line x1="${x}" x2="${x}" y1="${ty}" y2="${y}" stroke="${c('--yellow')}" stroke-opacity=".28" stroke-width="2" />`;
+      out += d.today
+        ? `<circle cx="${x}" cy="${y}" r="5.5" fill="${bg}" stroke="${c('--yellow')}" stroke-width="2.25" />`
+        : `<circle cx="${x}" cy="${y}" r="6" fill="${c('--yellow')}" stroke="${bg}" stroke-width="2" filter="url(#glow)" />`;
+      if (k % every === 0 || k === days.length - 1)
+        out += `<text x="${x}" y="${H - 9}" text-anchor="middle" font-size="10" font-weight="600" fill="${muted}">${d.today ? 'today' : `${d.day.getMonth() + 1}/${d.day.getDate()}`}</text>`;
+    });
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.innerHTML = out;
   }
@@ -1358,9 +1224,7 @@
     const el = document.getElementById('history');
     const items = [
       ...[...m.doses].reverse().map(d => ({ date: d.date, kind: 'dose', id: d.id, color: 'yellow', title: `${fmt(d.mg)} mg`, extra: `${fmt(d.dayTotal)} mg ${d.date.toDateString() === m.now.toDateString() ? 'today' : 'that day'}${d.adjusted ? ' · adjusted' : ''}` })),
-      ...m.agitation.map(a => ({ date: a.date, kind: 'agitation', id: a.id, color: 'purple', title: `Agitation ${a.level}/5` })),
       ...m.sleep.map(x => ({ date: x.date, kind: 'sleep', id: x.id, color: 'green', title: `Sleep ${fmt(x.hours, 1)} h` })),
-      ...m.naps.map(x => ({ date: x.date, kind: 'nap', id: x.id, color: 'nap', title: 'Nap' })),
     ].sort((a, b) => b.date - a.date);
     if (!items.length) { el.innerHTML = '<p class="empty">Nothing logged yet.</p>'; return; }
     el.innerHTML = items.map(it =>
@@ -1398,12 +1262,9 @@
   const logBtn = document.getElementById('b-log');
   const pick = (groupSel, btn) => document.querySelectorAll(groupSel + ' button').forEach(o => o.setAttribute('aria-pressed', String(o === btn)));
 
-  let kind = 'dose', doseMg = 15, agLevel = 0, sleepH = 7;
+  let kind = 'dose', doseMg = 15, sleepH = 7;
   function updateLogButton() {
-    logBtn.disabled = kind === 'agitation' && !agLevel;
-    logBtn.textContent = kind === 'dose' ? `Log ${doseMg} mg dose`
-      : kind === 'agitation' ? (agLevel ? `Log agitation ${agLevel}` : 'Pick 1–5')
-      : kind === 'sleep' ? `Log ${fmt(sleepH, 1)} h sleep` : 'Log nap';
+    logBtn.textContent = kind === 'dose' ? `Log ${doseMg} mg dose` : `Log ${fmt(sleepH, 1)} h sleep`;
   }
   document.querySelectorAll('#kind-tabs button').forEach(btn => btn.addEventListener('click', () => {
     kind = btn.dataset.kind;
@@ -1414,11 +1275,8 @@
   document.querySelectorAll('#dose-seg button').forEach(btn => btn.addEventListener('click', () => {
     doseMg = Number(btn.dataset.mg); pick('#dose-seg', btn); updateLogButton();
   }));
-  document.querySelectorAll('#ag-seg button').forEach(btn => btn.addEventListener('click', () => {
-    agLevel = Number(btn.dataset.ag); pick('#ag-seg', btn); updateLogButton();
-  }));
   const stepSleep = d => {
-    sleepH = Math.min(10, Math.max(1, sleepH + d));
+    sleepH = Math.min(12, Math.max(0, sleepH + d));
     document.getElementById('sl-val').textContent = `${fmt(sleepH, 1)} h`;
     updateLogButton();
   };
@@ -1434,17 +1292,9 @@
     if (kind === 'dose') {
       state.doses.push({ id: newId(), t, mg: doseMg, ...exact });
       logged(`Logged ${doseMg} mg at ${at}`);
-    } else if (kind === 'agitation') {
-      if (!agLevel) return;
-      state.agitation.push({ id: newId(), t, level: agLevel, ...exact });
-      logged(`Logged agitation ${agLevel}/5 at ${at}`);
-      agLevel = 0; pick('#ag-seg', null);
-    } else if (kind === 'sleep') {
+    } else {
       state.sleep.push({ id: newId(), t, hours: sleepH, ...exact });
       logged(`Logged ${fmt(sleepH, 1)} h sleep on ${fmtDate(when)}`);
-    } else {
-      state.naps.push({ id: newId(), t, ...exact });
-      logged(`Logged a nap at ${at}`);
     }
     save(); render(); setNow(); updateLogButton();
   });
@@ -1510,8 +1360,8 @@
     }
     // Over (or under) the allowances, as 30 then 15 mg chunks on spread-out days.
     const extra = total - days.reduce((s, d) => s + d.mg, 0), sign = Math.sign(extra);
-    const c30 = Math.floor(Math.abs(extra) / 30), c15 = (Math.abs(extra) - 30 * c30) / 15;
-    const chunks = [...Array(c30).fill(30), ...Array(c15).fill(15)];
+    // 15 mg at a time, spread as evenly as the days allow.
+    const chunks = Array(Math.round(Math.abs(extra) / 15)).fill(15);
     const hit = new Set();
     chunks.forEach((c, k) => {
       let i = Math.floor((k + 0.5) * days.length / chunks.length);
@@ -1551,10 +1401,15 @@
       (over ? `, and the ${fmt(over)} mg ${word} (${pillsText(over)} mg) goes on ${ev.chunkDays} day${ev.chunkDays === 1 ? '' : 's'} spread as far apart as possible` : '') +
       `. Each day's doses are evenly spaced. Totals don't change; today isn't touched.\n\nA backup of your current log downloads first, and "Undo even-out" puts the real times back.`;
     if (!confirm(msg)) return;
-    const removed = state.doses.filter(d => ev.old.some(o => o.id === d.id));
+    const taken = state.doses.filter(d => ev.old.some(o => o.id === d.id));
+    // Evening out again keeps the real times from the first time for Undo
+    // (and in the backup), not the previous even-out's times.
+    const prev = evenUndo(), prevAdded = new Set(prev ? prev.added : []);
+    const removed = [...(prev ? prev.removed : []), ...taken.filter(d => !prevAdded.has(d.id))];
+    const real = { ...state, doses: [...state.doses.filter(d => !prevAdded.has(d.id)), ...(prev ? prev.removed : [])] };
     try { localStorage.setItem(KEY + '.beforeEven', JSON.stringify({ removed, added: ev.entries.map(e => e.id) })); } catch (e) {}
-    await download(JSON.stringify(state, null, 2), 'application/json', `pill-tracker-before-even-out-${today()}.json`);
-    const ids = new Set(removed.map(d => d.id));
+    await download(JSON.stringify(real, null, 2), 'application/json', `pill-tracker-before-even-out-${today()}.json`);
+    const ids = new Set(taken.map(d => d.id));
     state.doses = [...state.doses.filter(d => !ids.has(d.id)), ...ev.entries];
     save(); render();
   });
@@ -1601,9 +1456,7 @@
       rows.push([p.end, 'Target end', '', '', '']);
     }
     for (const d of state.doses) rows.push([d.t, 'Dose', fmt(d.mg), '', d.adjusted ? 'adjusted (evenly spaced)' : '']);
-    for (const a of state.agitation) rows.push([a.t, 'Agitation', '', String(a.level), '1-5']);
     for (const x of state.sleep) rows.push([x.t, 'Sleep', '', fmt(x.hours, 1), 'hours']);
-    for (const x of state.naps) rows.push([x.t, 'Nap', '', '', '']);
     rows.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
     const csv = ['Date,Time,Event,mg,Value,Notes', ...rows.map(([t, ev, mg, val, note]) =>
       [t.slice(0, 10), t.slice(11, 16), ev, mg, val, note].map(v => /[",]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v).join(','))];
