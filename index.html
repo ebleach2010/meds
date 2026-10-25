@@ -169,6 +169,8 @@
   .key i.ln-pt { position: relative; }
   .key i.ln-pt::after { content: ""; position: absolute; left: 3px; top: -2.5px; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
   .key span { color: var(--muted); }
+  .bottles { margin: 12px 0 0; font-size: 14px; line-height: 1.45; }
+  .bottles span { color: var(--muted); }
   .sleep-avg { margin: 12px 0 0; font-size: 14px; color: var(--text); }
   .sleep-avg b { font-weight: 700; }
   .sleep-avg span { color: var(--muted); }
@@ -355,6 +357,7 @@
 
   <section class="card">
     <p class="summary" id="summary"></p>
+    <p class="bottles" id="bottles"></p>
     <p class="note" id="sched-note"></p>
   </section>
 
@@ -423,7 +426,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-37';
+  const BUILD = '2026-10-25-38';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -645,6 +648,23 @@
     return [n30 ? `${n30} × 30` : '', n15 ? `${n15} × 15` : ''].filter(Boolean).join(' + ');
   }
 
+  // Pills by bottle: a logged 30 mg dose is one 30 mg pill, anything else is
+  // that many 15 mg pills (the 135 mg first entry = 9). Evening out never
+  // changes these, so they match what's gone from each bottle.
+  function bottleCounts(list) {
+    return {
+      n30: list.filter(d => Number(d.mg) === 30).length,
+      n15: list.reduce((a, d) => a + (Number(d.mg) === 30 ? 0 : Math.round(Number(d.mg) / 15)), 0),
+    };
+  }
+  // The amount over as the pills Even out adds for it (15s before your first
+  // 30 mg dose, 30s after), so the two always agree; otherwise plain pills.
+  function overPills(m, mg) {
+    const ev = mg > 0 ? evenOutPlan(m) : null;
+    if (ev && !ev.error && ev.extra === mg) return [ev.x15 ? `${ev.x15} × 15` : '', ev.x30 ? `${ev.x30} × 30` : ''].filter(Boolean).join(' + ');
+    return pillsText(mg);
+  }
+
   function render() {
     const m = model();
     document.getElementById('b-uneven-row').hidden = !evenUndo();
@@ -655,7 +675,7 @@
     const diff = m.balance; // finished days: + under the allowance, - over
     const diffEl = document.getElementById('s-diff');
     diffEl.textContent = signedMg(diff);
-    const asPills = diff ? pillsText(Math.abs(diff)) : '';
+    const asPills = diff < 0 ? overPills(m, -diff) : diff ? pillsText(diff) : '';
     // Keep "4 × 30" together when the line wraps.
     const pillsLine = asPills ? ` · ${asPills.replace(/ × /g, '\u00a0×\u00a0')}\u00a0mg pills` : '';
     const alertIcon = '<svg class="alert-tri" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 23 21.5H1Z" fill="#ffd60a" stroke="#ff3358" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9v6.2" stroke="#ff3358" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="18.4" r="1.45" fill="#ff3358"/></svg>';
@@ -685,7 +705,7 @@
 
     const sum = document.getElementById('summary');
     const appt = fmtDate(m.end);
-    const doses = n => { const t = pillsText(n); return t ? ` (${t} mg)` : ''; };
+    const doses = n => { const t = diff < 0 && n === -diff ? overPills(m, n) : pillsText(n); return t ? ` (${t} mg)` : ''; };
     let pace, plan;
     const today = (m.leftToday >= 0 ? `${fmt(m.leftToday)} mg left today` : `<b class="bad">${fmt(-m.leftToday)} mg over</b> today's ${fmt(m.todayTarget)} mg`) + (m.lockedToday ? ` on your locked plan (${fmt(m.todayTarget)} mg today).` : '.');
     if (m.daysLeft <= 0) {
@@ -706,6 +726,8 @@
 
     document.getElementById('sched-note').textContent =
       `${fmt(m.s.mgPerDay)} mg/day from ${fmtDate(m.start)} to ${appt} = ${fmt(m.total)} mg total. ${fmt(m.taken)} mg taken, ${fmt(m.remaining)} mg left, ${fmt(m.daysLeft)} day${m.daysLeft === 1 ? '' : 's'} to go.`;
+    const bc = bottleCounts(m.counted);
+    document.getElementById('bottles').innerHTML = `Pills taken since ${fmtDate(m.start)}: <b>${bc.n15} × 15 mg</b> <span>(15 mg bottle)</span> · <b>${bc.n30} × 30 mg</b> <span>(30 mg bottle)</span>`;
 
     const last = m.doses[m.doses.length - 1];
     const mins = last ? Math.max(0, Math.floor((m.now - last.date) / 60000)) : 0;
@@ -740,7 +762,7 @@
     const svg = document.getElementById('chart');
     const W = Math.max(280, Math.round(svg.getBoundingClientRect().width));
     const H = Math.round(Math.min(300, Math.max(200, W * 0.62)));
-    const pad = { l: 14, r: 14, t: 22, b: 28 };
+    const pad = { l: 26, r: 14, t: 22, b: 28 };
     const css = getComputedStyle(document.documentElement);
     const c = k => css.getPropertyValue(k).trim();
     const bg = c('--bg'), muted = c('--muted');
@@ -765,6 +787,10 @@
       `<feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="b" />` +
       `<feComponentTransfer in="b" result="bf"><feFuncA type="linear" slope="1.4" /></feComponentTransfer>` +
       `<feMerge><feMergeNode in="bf" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>`;
+    // mg scale: tiny and faint, just for reference.
+    const yTick = hi > 240 ? 60 : 30;
+    for (let v = 0; v <= hi; v += yTick) out += `<text class="ytick" x="${pad.l - 6}" y="${r1(Y(v) + 3)}" text-anchor="end" font-size="8" fill="${muted}" opacity=".45">${v}</text>`;
+    out += `<text class="ytick" x="${pad.l - 6}" y="${pad.t - 10}" text-anchor="end" font-size="8" fill="${muted}" opacity=".45">mg</text>`;
     // Red: the daily allowance, straight across.
     const ty = r1(Y(target));
     out += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${ty}" y2="${ty}" stroke="${c('--red')}" stroke-width="2.25" stroke-linecap="round" filter="url(#glow)" />`;
@@ -1424,7 +1450,9 @@
       const anchor = n ? times[Math.floor((n - 1) / 2)] : new Date(Math.round((d.a.getTime() + (d.b - d.a) / 2) / MIN) * MIN);
       d.extraPills.forEach((mg, j) => add(new Date(anchor.getTime() + (j + 1) * MIN), mg));
     }
-    return { old, entries, total, n30, n15, extra, chunkDays: hit.size, from: days[0].day, to: days[days.length - 1].day };
+    const x30 = days.reduce((a, d) => a + d.extraPills.filter(p => p === 30).length, 0);
+    const x15 = days.reduce((a, d) => a + d.extraPills.filter(p => p === 15).length, 0);
+    return { old, entries, total, n30, n15, x15, x30, extra, chunkDays: hit.size, from: days[0].day, to: days[days.length - 1].day };
   }
   const evenUndo = () => { try { return JSON.parse(localStorage.getItem(KEY + '.beforeEven')); } catch (e) { return null; } };
   document.getElementById('b-even').addEventListener('click', async () => {
@@ -1432,9 +1460,9 @@
     if (ev.error) { alert(ev.error); return; }
     const over = Math.abs(ev.extra), word = ev.extra > 0 ? 'over' : 'under';
     const msg = `Re-time ${ev.old.length} doses from ${fmtDate(ev.from)} to ${fmtDate(ev.to)}: ${fmt(ev.total)} mg = ` +
-      [ev.n30 ? `${ev.n30} × 30` : '', ev.n15 ? `${ev.n15} × 15` : ''].filter(Boolean).join(' + ') + ' mg.\n\n' +
+      [ev.n15 ? `${ev.n15} × 15 mg (15 mg bottle)` : '', ev.n30 ? `${ev.n30} × 30 mg (30 mg bottle)` : ''].filter(Boolean).join(' + ') + '. The same pills from each bottle afterwards.\n\n' +
       `Every day gets the ${fmt(state.settings.mgPerDay)} mg allowance` +
-      (over ? `, and the ${fmt(over)} mg ${word} (${pillsText(over)} mg) goes on ${ev.chunkDays} day${ev.chunkDays === 1 ? '' : 's'} in a row from the start (15s first, then 30s from your first 30 mg dose)` : '') +
+      (over ? `, and the ${fmt(over)} mg ${word} (${ev.extra > 0 ? [ev.x15 ? `${ev.x15} × 15` : '', ev.x30 ? `${ev.x30} × 30` : ''].filter(Boolean).join(' + ') : pillsText(over)} mg) goes on ${ev.chunkDays} day${ev.chunkDays === 1 ? '' : 's'} in a row from the start (15s first, then 30s from your first 30 mg dose)` : '') +
       `. Each day's regular doses are evenly spaced, and any extra is taken together with one of them. Totals don't change; today isn't touched.\n\nA backup of your current log downloads first, and "Undo even-out" puts the real times back.`;
     if (!confirm(msg)) return;
     const taken = state.doses.filter(d => ev.old.some(o => o.id === d.id));

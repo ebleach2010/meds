@@ -8,13 +8,14 @@ Your total for the period is the allotted mg/day × the calendar days from "Coun
 
 The top of the screen shows three numbers:
 - **mg left today:** today's allowance minus today's doses. It resets at midnight and turns into "mg over today" if you go past it.
-- **Balance (past days):** finished days only. Unused allowance is `+` ("mg extra"), anything over is `−` ("mg deficit"), also written as pills, e.g. "· 4 × 30 + 1 × 15 mg pills" (30s once you've logged a 30 mg dose, otherwise all 15s).
+- **Balance (past days):** finished days only. Unused allowance is `+` ("mg extra"), anything over is `−` ("mg deficit"), also written as pills, e.g. "· 3 × 15 + 3 × 30 mg pills" (when over, the same pills Even out adds) (30s once you've logged a 30 mg dose, otherwise all 15s).
 - **Streak:** in green under the balance, how many finished days in a row (back from yesterday, counting from 10/24) came to exactly the daily allowance, e.g. "3 days in a row at exactly 75 mg". A day over or under resets it. It's bold green with a slow shine and a soft glow.
 - **mg/day target:** the daily target from Settings (75), always. What you'd need to average from today to land exactly on the total is in the summary under the chart.
 
 Doses logged with a future time don't count until that time arrives.
 
-- **Chart:** a flat red line at the daily allowance (75 mg) across every day from "Counting from" to today, and one yellow dot per day at that day's total, above the line if you took more, below if less, on it if you took exactly the allowance. Today's dot is hollow while the day is still going. The mg scale only keeps the dots in proportion, so it isn't labelled.
+- **Chart:** a flat red line at the daily allowance (75 mg) across every day from "Counting from" to today, and one yellow dot per day at that day's total, above the line if you took more, below if less, on it if you took exactly the allowance. Today's dot is hollow while the day is still going. The mg scale is marked very small and faint on the left, just for reference.
+- **Pills by bottle:** in the summary card, "Pills taken since …: N × 15 mg (15 mg bottle) · M × 30 mg (30 mg bottle)". A logged 30 mg dose is one 30 mg pill; anything else is that many 15s (the first 135 mg entry = 9). Even out never changes these, so they match what a count of each bottle should show.
 - **Sleep:** a line under the chart gives your average hours a night since "Counting from", from the nights you log (Apple Watch). Sleep isn't drawn on the chart.
 
 The look is dark and neon whatever the phone's light/dark setting.
