@@ -222,6 +222,13 @@
   details[open] summary::after { transform: rotate(-90deg); }
   .field { margin-top: 14px; }
   .row { display: flex; gap: 8px; margin-top: 14px; }
+  .disp-s { font-size: 13px; font-weight: 600; color: var(--muted); margin-left: auto; margin-right: 10px; text-align: right; }
+  .disp-s.on { color: var(--accent); }
+  .check-row { display: flex; align-items: center; gap: 10px; margin: 12px 2px 0; font-size: 15px; color: var(--text); min-height: 44px; cursor: pointer; }
+  .check-row input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; }
+  .slot { display: grid; grid-template-columns: minmax(0, 1fr) 96px 44px; gap: 8px; margin-top: 10px; align-items: center; }
+  .slot input, .slot select { min-height: 48px; padding: 0 12px; border: 0; border-radius: 14px; background: var(--chip); color: var(--text); font: inherit; font-size: 16px; min-width: 0; -webkit-appearance: none; appearance: none; }
+  .slot .del { min-height: 44px; min-width: 44px; padding: 0; background: none; color: var(--muted); }
   .row > button { flex: 1; }
   @media (max-width: 359px) { .tabs button { font-size: 13px; } }
   .footer { font-size: 12px; color: var(--muted); text-align: center; margin: 8px 0 0; }
@@ -340,6 +347,17 @@
   </section>
 
   <section class="card">
+    <details id="disp">
+      <summary><span>Dispenser</span><span class="disp-s" id="disp-status"></span></summary>
+      <p class="note">Doses your dispenser releases count as taken automatically at these times, from the start below, so you don't have to log them. If one was missed, delete it in History.</p>
+      <label class="check-row"><input type="checkbox" id="d-on"> Use the dispenser schedule</label>
+      <div class="field"><label for="d-from">Starting</label><input type="datetime-local" id="d-from"></div>
+      <div id="d-slots"></div>
+      <div class="row"><button type="button" id="d-add">Add a time</button><button type="button" class="primary" id="d-save">Save schedule</button></div>
+    </details>
+  </section>
+
+  <section class="card">
     <p class="summary" id="summary"></p>
     <p class="note" id="sched-note"></p>
   </section>
@@ -420,7 +438,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-41';
+  const BUILD = '2026-10-25-42';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -458,6 +476,15 @@
     pl.moves = Array.isArray(pl.moves) ? pl.moves.filter(x => x && typeof x.from === 'string' && typeof x.to === 'string') : [];
     if (!pl.locked || typeof pl.locked !== 'object' || !pl.locked.days || typeof pl.locked.days !== 'object') pl.locked = null;
     if (!pl.pills || typeof pl.pills !== 'object' || (pl.pills[15] === false && pl.pills[30] === false)) pl.pills = { 15: true, 30: true };
+    // Dispenser: periods of a fixed daily schedule ({from, slots}); a period
+    // with no slots means it was switched off. skips = released doses missed.
+    const dp = s.dispenser && typeof s.dispenser === 'object' ? s.dispenser : {};
+    s.dispenser = {
+      periods: (Array.isArray(dp.periods) ? dp.periods : []).filter(x => x && typeof x.from === 'string' && Array.isArray(x.slots))
+        .map(x => ({ from: x.from, slots: x.slots.filter(o => o && hhmm.test(o.time) && Number(o.mg) > 0).map(o => ({ time: o.time, mg: Number(o.mg) })) }))
+        .sort((a, b) => a.from < b.from ? -1 : a.from > b.from ? 1 : 0),
+      skips: Array.isArray(dp.skips) ? dp.skips.filter(x => typeof x === 'string') : [],
+    };
     return s;
   }
 
@@ -539,12 +566,48 @@
     return (w(b) - w(a)) / DAY;
   }
 
+  // Doses the dispenser has released so far: each scheduled time from a
+  // period's start until the next period (or now, or the end point).
+  function dispenserDoses(now) {
+    const ps = state.dispenser.periods, out = [];
+    const endT = parseLocal(state.settings.end).getTime();
+    ps.forEach((p, i) => {
+      const a = parseLocal(p.from), b = i + 1 < ps.length ? parseLocal(ps[i + 1].from) : null;
+      const day = new Date(a); day.setHours(0, 0, 0, 0);
+      for (; day <= now; day.setDate(day.getDate() + 1)) {
+        p.slots.forEach((sl, k) => {
+          const [h, mi] = sl.time.split(':').map(Number);
+          const t = new Date(day); t.setHours(h, mi, 0, 0);
+          if (t < a || (b && t >= b) || t > now || t.getTime() >= endT) return;
+          const id = `disp-${toLocalInput(t)}-${k}`;
+          if (!state.dispenser.skips.includes(id)) out.push({ id, t: toLocalInput(t), at: t.getTime(), mg: sl.mg, auto: true });
+        });
+      }
+    });
+    return out;
+  }
+  // The schedule in force now (null if off), and its next release.
+  function dispenserNow(now) {
+    const ps = state.dispenser.periods.filter(p => parseLocal(p.from) <= now);
+    const cur = ps.length ? ps[ps.length - 1] : state.dispenser.periods.find(p => parseLocal(p.from) > now) || null;
+    if (!cur || !cur.slots.length) return { cur: null };
+    const from = parseLocal(cur.from);
+    let next = null;
+    for (let d = 0; d < 3 && !next; d++) {
+      const day = new Date(now > from ? now : from); day.setHours(0, 0, 0, 0); day.setDate(day.getDate() + d);
+      const ts = cur.slots.map(sl => { const [h, mi] = sl.time.split(':').map(Number); const t = new Date(day); t.setHours(h, mi, 0, 0); return { t, mg: sl.mg }; })
+        .filter(x => x.t > now && x.t >= from).sort((a, b) => a.t - b.t);
+      next = ts[0] || null;
+    }
+    return { cur, next };
+  }
+
   function model() {
     const s = state.settings;
     const now = new Date(), nowT = now.getTime();
     const start = parseLocal(s.start), startT = start.getTime();
     const end = parseLocal(s.end), endT = end.getTime();
-    const doses = state.doses
+    const doses = [...state.doses, ...dispenserDoses(now)]
       .map(d => ({ ...d, date: when(d) }))
       .sort((a, b) => a.date - b.date);
     const counted = doses.filter(d => d.date >= start && d.date <= now && d.date <= end);
@@ -633,6 +696,7 @@
 
   function render() {
     const m = model();
+    renderDispenserStatus(m.now);
     const leftEl = document.getElementById('s-left');
     leftEl.textContent = fmt(Math.abs(m.leftToday));
     document.getElementById('s-left-l').textContent = (m.leftToday < 0 ? 'mg over today' : 'mg left today') + (m.lockedToday ? ' (locked plan)' : '');
@@ -1304,7 +1368,7 @@
   function renderHistory(m) {
     const el = document.getElementById('history');
     const items = [
-      ...[...m.doses].reverse().map(d => ({ date: d.date, kind: 'dose', id: d.id, color: 'yellow', title: `${fmt(d.mg)} mg`, extra: `${fmt(d.dayTotal)} mg ${d.date.toDateString() === m.now.toDateString() ? 'today' : 'that day'}` })),
+      ...[...m.doses].reverse().map(d => ({ date: d.date, kind: 'dose', id: d.id, color: 'yellow', title: `${fmt(d.mg)} mg`, extra: `${fmt(d.dayTotal)} mg ${d.date.toDateString() === m.now.toDateString() ? 'today' : 'that day'}${d.auto ? ' · dispenser' : ''}` })),
       ...m.agitation.map(a => ({ date: a.date, kind: 'agitation', id: a.id, color: 'purple', title: `Agitation ${a.level}/5` })),
       ...m.sleep.map(x => ({ date: x.date, kind: 'sleep', id: x.id, color: 'green', title: `Sleep ${fmt(x.hours, 1)} h` })),
       ...m.naps.map(x => ({ date: x.date, kind: 'nap', id: x.id, color: 'nap', title: 'Nap' })),
@@ -1318,7 +1382,24 @@
   }
 
   // ---- settings UI ----
+  function renderDispenser() {
+    const ps = state.dispenser.periods, last = ps[ps.length - 1];
+    const slots = last && last.slots.length ? last.slots : [{ time: '08:00', mg: 30 }, { time: '12:00', mg: 15 }, { time: '20:00', mg: 30 }];
+    document.getElementById('d-on').checked = !!(last && last.slots.length);
+    document.getElementById('d-from').value = last && last.slots.length ? last.from : toLocalInput(new Date());
+    const opts = mg => [15, 30, 45, 60, 75, 90].map(v => `<option value="${v}"${v === mg ? ' selected' : ''}>${v} mg</option>`).join('');
+    document.getElementById('d-slots').innerHTML = slots.map(sl =>
+      `<div class="slot"><input type="time" value="${sl.time}" aria-label="Release time"><select aria-label="Amount">${opts(sl.mg)}</select><button type="button" class="del" data-slot-del aria-label="Remove">✕</button></div>`).join('');
+  }
+  function renderDispenserStatus(now) {
+    const { cur, next } = dispenserNow(now);
+    const el = document.getElementById('disp-status');
+    el.classList.toggle('on', !!cur);
+    el.textContent = !cur ? 'Off' : next ? `On · next ${fmtTime(next.t)}, ${fmt(next.mg)} mg` : 'On';
+  }
+
   function renderSettings() {
+    renderDispenser();
     const s = state.settings;
     document.getElementById('s-start').value = s.start;
     document.getElementById('s-rate').value = s.mgPerDay;
@@ -1396,9 +1477,34 @@
     save(); render(); setNow(); updateLogButton();
   });
 
+  document.getElementById('d-add').addEventListener('click', () => {
+    document.getElementById('d-slots').insertAdjacentHTML('beforeend',
+      `<div class="slot"><input type="time" value="12:00" aria-label="Release time"><select aria-label="Amount">${[15, 30, 45, 60, 75, 90].map(v => `<option value="${v}">${v} mg</option>`).join('')}</select><button type="button" class="del" data-slot-del aria-label="Remove">✕</button></div>`);
+  });
+  document.getElementById('d-slots').addEventListener('click', e => { const b = e.target.closest('[data-slot-del]'); if (b) b.closest('.slot').remove(); });
+  document.getElementById('d-save').addEventListener('click', () => {
+    const on = document.getElementById('d-on').checked;
+    const from = document.getElementById('d-from').value || toLocalInput(new Date());
+    const slots = [...document.querySelectorAll('#d-slots .slot')].map(r => ({ time: r.querySelector('input').value, mg: Number(r.querySelector('select').value) }))
+      .filter(x => /^\d\d:\d\d$/.test(x.time) && x.mg > 0).sort((a, b) => a.time < b.time ? -1 : 1);
+    if (on && !slots.length) { alert('Add at least one release time.'); return; }
+    // A new schedule takes over from its start; anything planned after that is replaced.
+    const ps = state.dispenser.periods.filter(p => p.from < from);
+    ps.push({ from, slots: on ? slots : [] });
+    state.dispenser.periods = ps;
+    save(); render(); renderDispenser();
+    document.getElementById('disp').open = false;
+  });
   document.getElementById('history').addEventListener('click', e => {
     const btn = e.target.closest('[data-del]');
     if (!btn) return;
+    if (btn.dataset.del.startsWith('disp-')) {
+      const d = dispenserDoses(new Date()).find(x => x.id === btn.dataset.del);
+      if (d && confirm(`Mark the ${d.mg} mg dispenser dose at ${fmtTime(new Date(d.at))} on ${fmtDate(new Date(d.at))} as missed?`)) {
+        state.dispenser.skips.push(d.id); save(); render();
+      }
+      return;
+    }
     const list = { dose: 'doses', agitation: 'agitation', sleep: 'sleep', nap: 'naps' }[btn.dataset.kind];
     const item = state[list].find(x => x.id === btn.dataset.del);
     if (!item) return;
@@ -1464,6 +1570,7 @@
       rows.push([p.end, 'Target end', '', '', '']);
     }
     for (const d of state.doses) rows.push([d.t, 'Dose', fmt(d.mg), '', '']);
+    for (const d of dispenserDoses(new Date())) rows.push([d.t, 'Dose', fmt(d.mg), '', 'dispenser']);
     for (const a of state.agitation) rows.push([a.t, 'Agitation', '', String(a.level), '1-5']);
     for (const x of state.sleep) rows.push([x.t, 'Sleep', '', fmt(x.hours, 1), 'hours']);
     for (const x of state.naps) rows.push([x.t, 'Nap', '', '', '']);
