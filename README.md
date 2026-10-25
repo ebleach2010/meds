@@ -33,14 +33,15 @@ Settings: counting-from date, allotted mg/day, appointment. "Export CSV" under H
 
 The **Taper plan** tab works out exactly when to take each remaining 15 mg pill so you land on your target by the end point:
 
-- **Pills to plan:** the target total minus everything taken so far, in whole 15 mg pills.
-- **Hours:** "Around the clock" (default) spaces pills over the full 24 h, so 75 mg/day is a pill every 4h 48m. "Waking hours" spaces them only between Awake from and Asleep at.
-- **Pills per day:** each day gets a whole number of pills, never more than the daily allowance. Days with more pills come first, so the gaps only ever get longer: that's the taper. "Even" spreads them as evenly as possible; "Gentle" and "Steady" tilt more towards the early days. When there's little room under the allowance, all three look the same.
-- **Finish with extra:** a dropdown (0, 15, 30 … mg, in 15 mg steps up to everything left) holds that much back from the plan, so you finish with it left over. Fewer pills to fit means more room for a visible taper: the extra comes off the later days first.
-- **Never faster than your allowance pace:** today's first pill is at least one full gap after your last dose, and today's last pill is at least one gap before tomorrow's first. If that means the target can't be reached, the plan says how many pills don't fit (you'd finish under target) rather than squeezing them in.
+- **mg to plan:** the target total minus everything taken so far, in whole doses.
+- **Hours:** "Around the clock" (default) spaces doses over the full 24 h, so at 75 mg/day there are up to 5 dose times a day, every 4h 48m. "Waking hours" fits the same number between Awake from and Asleep at.
+- **Taper shape:** a slider. Fully left (smoothest) is a straight line down from what you've been taking lately (the last 3 finished days' average), started just below it so the step into the plan is the same size as each step after it: the smallest day-to-day drops that still land on target. Fully right (most aggressive) holds your recent level as long as the total allows, then drops hard over the last days, down to nothing if that's what the numbers say. Anywhere in between blends the two. A bar per day under the slider shows the shape (orange = over your daily allowance, dashed red line = the allowance), with the biggest one-day drop and any days left with nothing spelled out under it. Whole days never go back up.
+- **Pills I have:** 15 mg and 30 mg, both on by default, so the plan mixes them. Each dose time is one pill: 15s wherever the slots allow, with 30s spread among them on days that need more (e.g. 90 mg = four 15s and one 30). Tap one off when you run out: with 15s only a day tops out at 75 mg; with 30s only, days come in 30 mg steps.
+- **Finish with extra:** a dropdown (0, 15, 30 … mg, in 15 mg steps up to everything left) holds that much back from the plan, so you finish with it left over.
+- **Never faster than your allowance pace:** today's first dose is at least one full gap after your last dose, and today's last dose is at least one gap before tomorrow's first. If that means the target can't be reached, the plan says how many mg don't fit (you'd finish under target) rather than squeezing them in.
 - **Clock change:** on the night clocks go back, a time in the repeated 1 AM hour is marked †, meaning take it at the second 1:30 after the change.
 - **Past days:** a list above the upcoming days shows every finished day's total mg against the daily allowance ("on target", "+60 over", "60 under"), newest first, with the running total in the header.
-- **Re-plans as you go:** every logged dose, from either tab, updates the plan. "Log 15 mg now" logs the next pill.
+- **Re-plans as you go:** every logged dose, from either tab, updates the plan. "Log 15 mg now" (or 30) logs the next planned dose.
 
 It's a scheduling aid, not medical advice; check any change in how you take your medication with your prescriber.
 
