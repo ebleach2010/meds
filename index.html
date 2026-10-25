@@ -149,6 +149,9 @@
   @media (prefers-reduced-motion: reduce) { #chart .pulse { animation: none; opacity: 0; } }
   /* Balance subtitle: 2 pt larger and bold, with a pulsing alert when over. */
   .stat #s-diff-l { font-size: 15.5px; font-weight: 700; }
+  .streak { margin-top: 8px; font-size: 14px; font-weight: 600; color: var(--good); line-height: 1.3; }
+  .streak b { margin-right: 3px; font-size: 20px; font-weight: 800; text-shadow: 0 0 10px rgba(0,200,5,.45); }
+  .streak.none { opacity: .75; }
   .alert-tri { display: inline-block; width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin-right: 6px; transform-origin: 50% 60%; animation: alertpulse 1.4s ease-in-out infinite; }
   @keyframes alertpulse { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px rgba(255,51,88,.5)); } 50% { transform: scale(1.18); filter: drop-shadow(0 0 7px rgba(255,51,88,.95)); } }
   @media (prefers-reduced-motion: reduce) { .alert-tri { animation: none; } }
@@ -323,7 +326,7 @@
   <section class="hero">
     <div class="stats">
       <div class="stat"><div class="v" id="s-left">–</div><div class="l" id="s-left-l">mg left today</div></div>
-      <div class="stat"><div class="v" id="s-diff">–</div><div class="l" id="s-diff-l">balance</div></div>
+      <div class="stat"><div class="v" id="s-diff">–</div><div class="l" id="s-diff-l">balance</div><div class="streak" id="s-streak"></div></div>
       <div class="stat"><div class="v" id="s-avg">–</div><div class="l">mg/day to target</div></div>
     </div>
     <div class="today-wrap">
@@ -428,7 +431,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-32';
+  const BUILD = '2026-10-25-33';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -463,6 +466,8 @@
     if (![15, 30, 45].includes(Number(pl.swing))) pl.swing = 15;
     pl.swing = Number(pl.swing);
     if (!(Number(pl.seed) > 0)) pl.seed = 1;
+    // The 75 mg streak counts days from 10/24 on (when you started logging carefully).
+    if (!/^\d{4}-\d\d-\d\d$/.test(s.streakFrom)) s.streakFrom = '2026-10-24';
     pl.moves = Array.isArray(pl.moves) ? pl.moves.filter(x => x && typeof x.from === 'string' && typeof x.to === 'string') : [];
     if (!pl.locked || typeof pl.locked !== 'object' || !pl.locked.days || typeof pl.locked.days !== 'object') pl.locked = null;
     if (!pl.pills || typeof pl.pills !== 'object' || (pl.pills[15] === false && pl.pills[30] === false)) pl.pills = { 15: true, 30: true };
@@ -665,6 +670,20 @@
     const diffL = document.getElementById('s-diff-l');
     diffL.textContent = (diff === 0 ? 'balance: even' : diff > 0 ? 'mg extra (past days)' : 'mg deficit (past days)') + pillsLine;
     if (diff < 0) diffL.insertAdjacentHTML('afterbegin', alertIcon);
+    // Streak: finished days in a row, back from yesterday, that came to
+    // exactly the daily allowance (counting only from state.streakFrom).
+    let streak = 0;
+    const from = parseLocal(state.streakFrom + 'T00:00');
+    for (const d = new Date(m.now); ; ) {
+      d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - 1);
+      if (d < from || d < new Date(new Date(m.start).setHours(0, 0, 0, 0))) break;
+      const key = d.toDateString();
+      if (m.counted.filter(x => x.date.toDateString() === key).reduce((a, x) => a + x.mg, 0) !== m.s.mgPerDay) break;
+      streak++;
+    }
+    const streakEl = document.getElementById('s-streak');
+    streakEl.classList.toggle('none', !streak);
+    streakEl.innerHTML = `<b>${streak}</b> day${streak === 1 ? '' : 's'} in a row at exactly ${fmt(m.s.mgPerDay)} mg` + (streak ? '' : ' (yet)');
     diffEl.style.color = diff === 0 ? '' : diff > 0 ? 'var(--good)' : 'var(--bad)';
     document.getElementById('s-avg').textContent = fmt(m.avgToTarget);
 
