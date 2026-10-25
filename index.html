@@ -147,6 +147,11 @@
   #chart .pulse { transform-box: fill-box; transform-origin: center; animation: pulse 2.4s ease-out infinite; }
   @keyframes pulse { 0% { transform: scale(1); opacity: .9; } 70%, 100% { transform: scale(3.2); opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { #chart .pulse { animation: none; opacity: 0; } }
+  /* Balance subtitle: 2 pt larger and bold, with a pulsing alert when over. */
+  .stat #s-diff-l { font-size: 15.5px; font-weight: 700; }
+  .alert-tri { display: inline-block; width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin-right: 6px; transform-origin: 50% 60%; animation: alertpulse 1.4s ease-in-out infinite; }
+  @keyframes alertpulse { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px rgba(255,51,88,.5)); } 50% { transform: scale(1.18); filter: drop-shadow(0 0 7px rgba(255,51,88,.95)); } }
+  @media (prefers-reduced-motion: reduce) { .alert-tri { animation: none; } }
   .since { text-align: right; font-size: 16pt; font-weight: 600; color: var(--yellow); margin-top: 4px; letter-spacing: -.01em; font-variant-numeric: tabular-nums; text-shadow: 0 0 18px rgba(255,214,10,.35); }
   .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 16px; }
   .key { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); white-space: nowrap; }
@@ -423,7 +428,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-31';
+  const BUILD = '2026-10-25-32';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -654,7 +659,12 @@
     const diffEl = document.getElementById('s-diff');
     diffEl.textContent = signedMg(diff);
     const asPills = diff ? pillsText(Math.abs(diff)) : '';
-    document.getElementById('s-diff-l').textContent = (diff === 0 ? 'balance: even' : diff > 0 ? 'mg extra (past days)' : 'mg deficit (past days)') + (asPills ? ` · ${asPills} mg pills` : '');
+    // Keep "4 × 30" together when the line wraps.
+    const pillsLine = asPills ? ` · ${asPills.replace(/ × /g, '\u00a0×\u00a0')}\u00a0mg pills` : '';
+    const alertIcon = '<svg class="alert-tri" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 23 21.5H1Z" fill="#ffd60a" stroke="#ff3358" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9v6.2" stroke="#ff3358" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="18.4" r="1.45" fill="#ff3358"/></svg>';
+    const diffL = document.getElementById('s-diff-l');
+    diffL.textContent = (diff === 0 ? 'balance: even' : diff > 0 ? 'mg extra (past days)' : 'mg deficit (past days)') + pillsLine;
+    if (diff < 0) diffL.insertAdjacentHTML('afterbegin', alertIcon);
     diffEl.style.color = diff === 0 ? '' : diff > 0 ? 'var(--good)' : 'var(--bad)';
     document.getElementById('s-avg').textContent = fmt(m.avgToTarget);
 
