@@ -71,6 +71,8 @@
   input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; margin-top: -13px; border-radius: 50%; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.7); }
   input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--accent), var(--yellow), var(--bad)); }
   input[type=range]::-moz-range-thumb { width: 30px; height: 30px; border: 0; border-radius: 50%; background: #fff; }
+  #p-when::-webkit-slider-runnable-track { background: #3a3a40; }
+  #p-when::-moz-range-track { background: #3a3a40; }
   .p-bars { margin-top: 12px; }
   .p-bars .area { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 78px; padding-top: 14px; }
   .p-bars .b { position: relative; flex: 1; min-width: 0; min-height: 2px; border-radius: 4px 4px 1px 1px; background: var(--accent); box-shadow: 0 0 8px rgba(0,200,5,.3); }
@@ -243,7 +245,10 @@
       <div class="p-shape">
         <div class="p-shape-h"><label for="p-shape">Taper shape</label><span id="p-shape-v"></span></div>
         <input type="range" id="p-shape" min="0" max="100" step="1" value="0" aria-describedby="p-shape-note">
-        <div class="scale"><span>Smooth</span><span>Hold, then drop</span></div>
+        <div class="scale"><span>Smooth, spread out</span><span>Big drops</span></div>
+        <div class="p-shape-h" style="margin-top:14px"><label for="p-when">Drops happen</label><span id="p-when-v"></span></div>
+        <input type="range" id="p-when" min="0" max="100" step="1" value="0" aria-describedby="p-shape-note">
+        <div class="scale"><span>Start</span><span>End</span></div>
         <div class="p-bars" id="p-bars" aria-hidden="true"></div>
         <p class="p-sum" id="p-shape-note" style="margin-top:10px"></p>
       </div>
@@ -264,7 +269,7 @@
       <div id="p-past"></div>
     </section>
     <section class="card"><div class="card-h"><h2>Upcoming</h2><span class="p-sum" id="p-days-key"></span></div><div id="p-days"></div></section>
-    <p class="note" style="padding:0 4px">Spreads what's left of your target over the days to your end point, starting from what you've been taking lately and coming down to land exactly on target. Doses are one 15 or 30 mg pill, never closer together than your allowance pace. Days above your daily allowance show in orange. It's a scheduling aid, not medical advice. Check any change in how you take your medication with your prescriber, especially a sharp drop.</p>
+    <p class="note" style="padding:0 4px">Takes the cut needed to land exactly on target out of what you've been taking lately (up to 90 mg a day), as a dip you can spread out or concentrate and move anywhere before your end point. Doses are one 15 or 30 mg pill, never closer together than your allowance pace. Days above your daily allowance show in orange. It's a scheduling aid, not medical advice. Check any change in how you take your medication with your prescriber, especially a sharp drop.</p>
   </div>
 
   <div id="view-track">
@@ -374,7 +379,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-24';
+  const BUILD = '2026-10-25-25';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -400,6 +405,7 @@
     if (!s.plan.mode) s.plan.mode = 'clock';
     if (s.plan.surplus == null) s.plan.surplus = 0;
     if (s.plan.shape == null) s.plan.shape = 0;
+    if (s.plan.when == null) s.plan.when = 0;
     if (!s.plan.pills) s.plan.pills = { 15: true, 30: true };
     return s;
   }
@@ -782,14 +788,16 @@
   //    clock), counting from one full gap after the last dose. A dose is one
   //    15 or 30 mg pill, so a day holds at most 5 x 30 = 150 mg with 30s on
   //    hand, 75 mg with 15s only.
-  // 3. Day totals follow a curve from your recent level (last 3 finished
-  //    days) down to the end point, adding up exactly to what's left. The
-  //    shape slider runs from a straight line, its start set so the drop into
-  //    the plan matches the drops within it (smallest drops), to holding your
-  //    recent level as long as the total allows and then dropping hard.
-  // 4. Whole days never go back up. A day's doses are evenly spaced, with
-  //    any 30s spread among the 15s. Doses that can't fit are reported, not
-  //    squeezed in.
+  // 3. Day totals start from a baseline (your last 3 finished days'
+  //    average, at most 90 mg) and the cut needed to land exactly on what's
+  //    left is taken out as a dip under it. "Drops happen" sets which day
+  //    the dip is centred on (start to end); "Taper shape" sets how
+  //    concentrated it is, from spread over the whole period (smooth) to
+  //    packed into a few days (aggressive). Away from the dip the level goes
+  //    back up towards the baseline.
+  // 4. Whole days fall to the lowest day and rise after it, never zig-zag. A
+  //    day's doses are evenly spaced, with any 30s spread among the 15s.
+  //    Doses that can't fit are reported, not squeezed in.
   function buildPlan(m) {
     const MIN = 60000, p = state.plan, nowT = m.now.getTime();
     const has15 = p.pills[15] !== false, has30 = p.pills[30] !== false;
@@ -866,14 +874,19 @@
     const mean = D ? (target + t0sum) / D : 0;
     const recentAvg = out.recent.length ? out.recent.reduce((s, r) => s + r.mg, 0) / out.recent.length : m.s.mgPerDay;
     const L = Math.min(maxDay, Math.max(mean, recentAvg));
-    // Smooth end: a straight line whose first step down from L equals each
-    // daily step after it. Aggressive end: start at L and keep it.
-    const shape = Math.min(1, Math.max(0, Number(p.shape) || 0));
-    const a0 = D > 1 ? (L * (D - 1) + 2 * mean) / (D + 1) : mean;
-    let a = a0 + shape * (L - a0);
-    const pw = Math.pow(16, shape);               // 1 = straight line, 16 = flat then a cliff
-    const xs = days.map((_, k) => (k + 0.5) / Math.max(1, D));
-    const level = (a, A, k) => Math.min(capMg(days[k]), Math.max(0, a - A * xs[k] ** pw - days[k].t0));
+    out.base = L; out.mean = mean;
+    // The dip: a bell curve of cuts under L, centred on the "when" day,
+    // half a period wide when smooth down to about one day when aggressive.
+    const clamp01 = v => Math.min(1, Math.max(0, Number(v) || 0));
+    const shape = clamp01(p.shape), when = clamp01(p.when);
+    const Dn = Math.max(1, D);
+    const width = 0.5 * Math.pow((0.6 / Dn) / 0.5, shape);
+    const centre = (0.5 + when * (Dn - 1)) / Dn;
+    out.centreDay = days.length ? days[Math.round(when * (D - 1))].day : null;
+    const K = days.map((_, k) => Math.exp(-0.5 * (((k + 0.5) / Dn - centre) / width) ** 2));
+    let a = L;
+    // A day's cut can't take it below 0; deeper cuts spill to the days around it.
+    const level = (a, A, k) => Math.min(capMg(days[k]), Math.max(0, a - Math.min(a, A * K[k]) - days[k].t0));
     const sumAt = (a, A) => days.reduce((s, _, k) => s + level(a, A, k), 0);
     // Smallest x in [lo, hi] where tooLow(x) is false.
     const solve = (tooLow, lo, hi) => { for (let i = 0; i < 80; i++) { const mid = (lo + hi) / 2; if (tooLow(mid)) lo = mid; else hi = mid; } return hi; };
@@ -896,10 +909,16 @@
       best.units++; rem--;
     }
     out.unplannedMg = Math.max(0, rem) * g;
-    // Taper: among whole days, the bigger totals go first.
+    // Rounding can zig-zag (75, 60, 75); reorder whole days so they only
+    // fall up to the lowest day of the dip and only rise after it.
     const whole = days.filter(d => !d.part);
-    const units = whole.map(d => d.units).sort((x, y) => y - x);
-    whole.forEach((d, k) => { d.units = units[k]; });
+    if (whole.length) {
+      let low = 0;
+      whole.forEach((d, k) => { if (d.want < whole[low].want - 1e-9) low = k; });
+      const units = whole.map(d => d.units);
+      const down = units.slice(0, low + 1).sort((x, y) => y - x), up = units.slice(low + 1).sort((x, y) => x - y);
+      [...down, ...up].forEach((u, k) => { whole[k].units = u; });
+    }
 
     for (const d of days) {
       d.mg = d.units * g;
@@ -987,6 +1006,11 @@
     if (document.activeElement !== shapeEl) shapeEl.value = String(Math.round((Number(p.shape) || 0) * 100));
     const sv = Number(shapeEl.value);
     document.getElementById('p-shape-v').textContent = sv <= 10 ? 'Smoothest' : sv < 40 ? 'Gentle' : sv < 65 ? 'In between' : sv < 90 ? 'Aggressive' : 'Most aggressive';
+    const whenEl = document.getElementById('p-when');
+    if (document.activeElement !== whenEl) whenEl.value = String(Math.round((Number(p.when) || 0) * 100));
+    const wv = Number(whenEl.value);
+    document.getElementById('p-when-v').textContent = !plan.centreDay ? '' : wv <= 3 ? 'Right away' : wv >= 97 ? 'At the end'
+      : 'Around ' + plan.centreDay.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
     const short = d => d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
     const seq = plan.days.map(d => ({ day: d.day, mg: d.t0 + d.mg }));
     const yesterday = plan.recent[0];
@@ -1016,8 +1040,17 @@
     const zeros = seq.filter(x => !x.mg).length;
     let note = '';
     if (n && seq.some(x => x.mg > 0) && !(ended || usedUp)) {
-      if (plan.recent.length) note += `Your last ${plan.recent.length === 1 ? 'day' : plan.recent.length + ' days'} averaged <b>${fmt(plan.recent.reduce((s, r) => s + r.mg, 0) / plan.recent.length)} mg</b>. `;
-      note += seq[0].mg === seq[n - 1].mg ? `This stays at <b>${fmt(seq[0].mg)} mg</b> a day` : `This goes from <b>${fmt(seq[0].mg)}</b> to <b>${fmt(seq[n - 1].mg)} mg</b> a day`;
+      const avg = plan.recent.length ? plan.recent.reduce((s, r) => s + r.mg, 0) / plan.recent.length : null;
+      if (avg != null) note += `Your last ${plan.recent.length === 1 ? 'day' : plan.recent.length + ' days'} averaged <b>${fmt(avg)} mg</b>` +
+        (plan.base < avg - 0.5 ? `, so the baseline is <b>${fmt(plan.base)}</b> (the most it plans in a day). ` : '. ');
+      if (plan.base <= plan.mean + 0.5) note += `You're at or under the pace you need, so there's nothing to cut and both sliders give the same even plan. `;
+      let lowK = 0; seq.forEach((x, k) => { if (x.mg < seq[lowK].mg) lowK = k; });
+      if (seq.every(x => x.mg === seq[0].mg)) note += `This stays at <b>${fmt(seq[0].mg)} mg</b> a day`;
+      else {
+        note += `This starts at <b>${fmt(seq[0].mg)}</b>`;
+        if (lowK > 0 && lowK < n - 1 && seq[lowK].mg !== seq[n - 1].mg) note += `, dips to <b>${fmt(seq[lowK].mg)}</b> on ${short(seq[lowK].day)}`;
+        note += ` and ends at <b>${fmt(seq[n - 1].mg)} mg</b> a day`;
+      }
       note += drop ? `; biggest one-day drop <b>${fmt(drop.mg)} mg</b> (${short(drop.from.day)} → ${short(drop.to.day)}).` : '.';
       if (over) note += ` ${over} day${over === 1 ? ' is' : 's are'} over your ${fmt(m.s.mgPerDay)} mg allowance.`;
       if (zeros) note += ` <b>${zeros} day${zeros === 1 ? '' : 's'} with nothing left.</b>`;
@@ -1283,11 +1316,13 @@
   // The plan redraws live while you drag; it's saved when you let go.
   const shapeEl = document.getElementById('p-shape');
   let shapeFrame = 0;
-  shapeEl.addEventListener('input', () => {
-    state.plan.shape = Number(shapeEl.value) / 100;
-    if (!shapeFrame) shapeFrame = requestAnimationFrame(() => { shapeFrame = 0; renderPlan(model()); });
-  });
-  shapeEl.addEventListener('change', () => { state.plan.shape = Number(shapeEl.value) / 100; save(); render(); });
+  for (const [el, key] of [[shapeEl, 'shape'], [document.getElementById('p-when'), 'when']]) {
+    el.addEventListener('input', () => {
+      state.plan[key] = Number(el.value) / 100;
+      if (!shapeFrame) shapeFrame = requestAnimationFrame(() => { shapeFrame = 0; renderPlan(model()); });
+    });
+    el.addEventListener('change', () => { state.plan[key] = Number(el.value) / 100; save(); render(); });
+  }
   document.querySelectorAll('#p-pills button').forEach(btn => btn.addEventListener('click', () => {
     const pills = state.plan.pills, k = btn.dataset.pill, other = k === '15' ? '30' : '15';
     if (pills[k] !== false && pills[other] === false) { alert("Keep at least one strength on, or there's nothing to plan with."); return; }
