@@ -9,8 +9,8 @@ Your total for the period is the allotted mg/day × the calendar days from "Coun
 The top of the screen shows three numbers:
 - **mg left today:** today's allowance minus today's doses. It resets at midnight and turns into "mg over today" if you go past it.
 - **Balance (past days):** finished days only. Unused allowance is `+` ("mg extra"), anything over is `−` ("mg deficit"), also written as pills, e.g. "· 4 × 30 + 1 × 15 mg pills" (30s once you've logged a 30 mg dose, otherwise all 15s).
-- **Streak:** in green under the balance, how many finished days in a row (back from yesterday, counting from 10/24) came to exactly the daily allowance, e.g. "3 days in a row at exactly 75 mg". A day over or under resets it.
-- **mg/day to target:** what to average from today on to land exactly on the total by the appointment.
+- **Streak:** in green under the balance, how many finished days in a row (back from yesterday, counting from 10/24) came to exactly the daily allowance, e.g. "3 days in a row at exactly 75 mg". A day over or under resets it. It's bold green with a slow shine and a soft glow.
+- **mg/day target:** the daily target from Settings (75), always. What you'd need to average from today to land exactly on the total is in the summary under the chart.
 
 Doses logged with a future time don't count until that time arrives.
 

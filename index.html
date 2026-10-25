@@ -149,9 +149,15 @@
   @media (prefers-reduced-motion: reduce) { #chart .pulse { animation: none; opacity: 0; } }
   /* Balance subtitle: 2 pt larger and bold, with a pulsing alert when over. */
   .stat #s-diff-l { font-size: 15.5px; font-weight: 700; }
-  .streak { margin-top: 8px; font-size: 14px; font-weight: 600; color: var(--good); line-height: 1.3; }
-  .streak b { margin-right: 3px; font-size: 20px; font-weight: 800; text-shadow: 0 0 10px rgba(0,200,5,.45); }
-  .streak.none { opacity: .75; }
+  /* Streak: bold green with a slow shine sweeping across and a soft glow. */
+  .streak { margin-top: 8px; font-size: 14px; font-weight: 700; line-height: 1.3; color: var(--good);
+    background: linear-gradient(100deg, var(--good) 35%, #c8ffc9 50%, var(--good) 65%) 100% 0 / 300% 100% no-repeat;
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 5px rgba(0,200,5,.45)); animation: streakshine 3.6s ease-in-out infinite; }
+  .streak b { margin-right: 3px; font-size: 20px; font-weight: 800; }
+  @keyframes streakshine { 0% { background-position: 100% 0; } 55%, 100% { background-position: 0% 0; } }
+  .streak.none { opacity: .75; animation: none; -webkit-text-fill-color: var(--good); filter: none; }
+  @media (prefers-reduced-motion: reduce) { .streak { animation: none; -webkit-text-fill-color: var(--good); } }
   .alert-tri { display: inline-block; width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin-right: 6px; transform-origin: 50% 60%; animation: alertpulse 1.4s ease-in-out infinite; }
   @keyframes alertpulse { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px rgba(255,51,88,.5)); } 50% { transform: scale(1.18); filter: drop-shadow(0 0 7px rgba(255,51,88,.95)); } }
   @media (prefers-reduced-motion: reduce) { .alert-tri { animation: none; } }
@@ -327,7 +333,7 @@
     <div class="stats">
       <div class="stat"><div class="v" id="s-left">–</div><div class="l" id="s-left-l">mg left today</div></div>
       <div class="stat"><div class="v" id="s-diff">–</div><div class="l" id="s-diff-l">balance</div><div class="streak" id="s-streak"></div></div>
-      <div class="stat"><div class="v" id="s-avg">–</div><div class="l">mg/day to target</div></div>
+      <div class="stat"><div class="v" id="s-avg">–</div><div class="l">mg/day target</div></div>
     </div>
     <div class="today-wrap">
       <div class="today" id="today"></div>
@@ -431,7 +437,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-33';
+  const BUILD = '2026-10-25-34';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -685,7 +691,11 @@
     streakEl.classList.toggle('none', !streak);
     streakEl.innerHTML = `<b>${streak}</b> day${streak === 1 ? '' : 's'} in a row at exactly ${fmt(m.s.mgPerDay)} mg` + (streak ? '' : ' (yet)');
     diffEl.style.color = diff === 0 ? '' : diff > 0 ? 'var(--good)' : 'var(--bad)';
-    document.getElementById('s-avg').textContent = fmt(m.avgToTarget);
+    // The tile shows the daily target itself; the average needed to land on the
+    // total is in the summary under the chart.
+    const avgEl = document.getElementById('s-avg');
+    avgEl.textContent = fmt(m.s.mgPerDay);
+    avgEl.dataset.avg = fmt(m.avgToTarget);
 
     const sum = document.getElementById('summary');
     const appt = fmtDate(m.end);
