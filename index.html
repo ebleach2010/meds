@@ -389,7 +389,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-26';
+  const BUILD = '2026-10-25-27';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -406,26 +406,52 @@
   };
 
   let state = withLists(load());
+  if (!valid(state)) state = repair(state);
   save();
 
   // Agitation, sleep and nap logs were added later; older saves don't have them.
   function withLists(s) {
     for (const k of ['agitation', 'sleep', 'naps']) if (!Array.isArray(s[k])) s[k] = [];
-    if (!s.plan) s.plan = { wake: '07:00', sleep: '23:00', taper: 0.2 };
-    if (!s.plan.mode) s.plan.mode = 'clock';
-    if (s.plan.surplus == null) s.plan.surplus = 0;
-    if (s.plan.shape == null) s.plan.shape = 0;
-    if (s.plan.when == null) s.plan.when = 0;
-    if (!s.plan.pills) s.plan.pills = { 15: true, 30: true };
+    if (!s.plan || typeof s.plan !== 'object') s.plan = {};
+    const pl = s.plan, hhmm = /^\d\d:\d\d$/, unit = v => Math.min(1, Math.max(0, Number(v) || 0));
+    if (!hhmm.test(pl.wake)) pl.wake = '07:00';
+    if (!hhmm.test(pl.sleep)) pl.sleep = '23:00';
+    if (pl.mode !== 'awake') pl.mode = 'clock';
+    pl.surplus = Math.max(0, Math.floor((Number(pl.surplus) || 0) / 15) * 15);
+    pl.shape = unit(pl.shape);
+    pl.when = unit(pl.when);
+    if (!pl.pills || typeof pl.pills !== 'object' || (pl.pills[15] === false && pl.pills[30] === false)) pl.pills = { 15: true, 30: true };
     return s;
   }
 
   function load() {
+    let raw = null;
     try {
-      const s = JSON.parse(localStorage.getItem(KEY));
-      if (s && s.version === VERSION && s.settings && Array.isArray(s.doses)) return s;
+      raw = localStorage.getItem(KEY);
+      const s = JSON.parse(raw);
+      if (s && s.settings && Array.isArray(s.doses)) return s.version === VERSION ? s : migrate(s);
     } catch (e) {}
+    // Something unreadable: keep a copy aside rather than losing it.
+    try { if (raw) localStorage.setItem(KEY + '.bad', raw); } catch (e) {}
     return JSON.parse(JSON.stringify(DEFAULTS));
+  }
+  // Saved data that can't be drawn: keep a copy aside, drop the entries that
+  // can't be read, and fall back to the default settings only if those are
+  // what's broken.
+  function repair(s) {
+    try { localStorage.setItem(KEY + '.bad', JSON.stringify(s)); } catch (e) {}
+    const ok = t => typeof t === 'string' && !isNaN(parseLocal(t));
+    const set = s.settings || {};
+    if (!(ok(set.start) && ok(set.end) && Number(set.mgPerDay) > 0)) s.settings = { ...DEFAULTS.settings };
+    s.doses = (Array.isArray(s.doses) ? s.doses : []).filter(d => d && ok(d.t) && Number(d.mg) > 0);
+    for (const k of ['agitation', 'sleep', 'naps']) s[k] = s[k].filter(x => x && ok(x.t));
+    return s;
+  }
+  // A saved or imported state that can't be drawn is rejected.
+  function valid(s) {
+    const ok = t => typeof t === 'string' && !isNaN(parseLocal(t));
+    return s && s.settings && ok(s.settings.start) && ok(s.settings.end) && Number(s.settings.mgPerDay) > 0 &&
+      Array.isArray(s.doses) && s.doses.every(d => d && ok(d.t) && Number(d.mg) > 0);
   }
   // Older versions counted pills (a taper, a list of fills, or a bottle
   // count); everything is now mg against an allotment and end point.
@@ -456,6 +482,10 @@
     const [h, mi] = t.split(':').map(Number);
     return new Date(y, m - 1, da, h || 0, mi || 0);
   }
+  // An entry logged for "now" also keeps the exact moment (at), so one
+  // logged in the repeated 1 AM hour on the clocks-back night isn't read as
+  // the first pass of that hour.
+  const when = x => x.at ? new Date(x.at) : parseLocal(x.t);
   function toLocalInput(date) {
     const p = n => String(n).padStart(2, '0');
     return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
@@ -477,9 +507,9 @@
     const start = parseLocal(s.start), startT = start.getTime();
     const end = parseLocal(s.end), endT = end.getTime();
     const doses = state.doses
-      .map(d => ({ ...d, date: parseLocal(d.t) }))
+      .map(d => ({ ...d, date: when(d) }))
       .sort((a, b) => a.date - b.date);
-    const counted = doses.filter(d => d.date >= start && d.date <= now);
+    const counted = doses.filter(d => d.date >= start && d.date <= now && d.date <= end);
 
     // Red: what's left of the period's total if you take exactly the daily
     // allotment. Each calendar day's full allotment counts as soon as the day
@@ -507,7 +537,7 @@
     const remaining = cur;
     const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
     const daysLeft = now >= end ? 0 : Math.max(0, Math.ceil(wallDays(now < start ? start : todayMidnight, end))); // counting today
-    const byTime = list => list.map(x => ({ ...x, date: parseLocal(x.t) })).sort((a, b) => a.date - b.date);
+    const byTime = list => list.map(x => ({ ...x, date: when(x) })).sort((a, b) => a.date - b.date);
     const agitation = byTime(state.agitation);
     const sleep = byTime(state.sleep);
     const naps = byTime(state.naps);
@@ -536,7 +566,7 @@
       balance = total - taken;
       balMark = { t: endT, red: 0, yellow: remaining };
     } else if (now < start) {
-      avgToTarget = total / Math.max(1, Math.ceil(wallDays(start, end)));
+      avgToTarget = total / Math.max(1 / 24, wallDays(start, end));
     } else {
       const k = Math.floor(wallDays(day0, now)); // finished days
       const dayStart = new Date(day0); dayStart.setDate(dayStart.getDate() + k);
@@ -547,7 +577,7 @@
       balance = allowedDone - takenBefore;
       leftToday = todayAllowance - takenToday;
       if (k > 0) balMark = { t: dayStart.getTime(), red: total - allowedDone, yellow: total - takenBefore };
-      const daysFromToday = Math.max(1, Math.ceil(wallDays(dayStart, end)));
+      const daysFromToday = Math.max(1 / 24, wallDays(dayStart > start ? dayStart : start, end));
       avgToTarget = (total - takenBefore) / daysFromToday;
     }
     balance = Math.round(balance); leftToday = Math.round(leftToday); avgToTarget = Math.max(0, Math.round(avgToTarget));
@@ -823,7 +853,8 @@
     const [wh, wm] = p.wake.split(':').map(Number), [sh, sm] = p.sleep.split(':').map(Number);
     const slots = Math.max(1, Math.floor(m.s.mgPerDay / 15 + 1e-9));
     out.slots = slots;
-    const lastDose = m.counted.length ? m.counted[m.counted.length - 1].date.getTime() : null;
+    const past = m.doses.filter(x => x.date <= m.now);
+    const lastDose = past.length ? past[past.length - 1].date.getTime() : null;
 
     const days = [];
     const first = new Date(Math.max(nowT, m.start.getTime())); first.setHours(0, 0, 0, 0);
@@ -840,11 +871,15 @@
       let a = Math.max(w.getTime(), m.start.getTime());
       if (isToday) a = Math.max(a, nowT, lastDose ? lastDose + pace * MIN : 0);
       const b = Math.min(z.getTime(), m.end.getTime());
+      const part = (b - a) / MIN < full - 1;
+      // Any other part day (an end or start that isn't at midnight) starts
+      // half a gap in, like a whole day, so it follows on from the day before.
+      if (part && !isToday) a = Math.max(a, w.getTime() + pace / 2 * MIN, lastDose ? lastDose + pace * MIN : 0);
       const avail = Math.max(0, (b - a) / MIN);
-      const part = avail < full - 1;
       let dslots = slots;
       if (b <= a) dslots = 0;
-      else if (part) dslots = Math.min(slots, Math.floor(avail / pace + 1e-9) + 1);
+      // (On the last day no dose lands right on the end point itself.)
+      else if (part) dslots = Math.min(slots, b < m.end.getTime() ? Math.floor(avail / pace + 1e-9) + 1 : Math.ceil(avail / pace - 1e-9));
       const taken = isToday ? m.doses.filter(x => x.date.toDateString() === day.toDateString() && x.date <= m.now) : [];
       days.push({ day: new Date(day), wStart: w.getTime(), a, b, avail, full, pace, part, isToday, slots: dslots,
         taken, t0: taken.reduce((s, x) => s + x.mg, 0), units: 0, mg: 0, count: 0, times: [], doses: [], gaps: [] });
@@ -870,7 +905,7 @@
     for (let k = 1; k <= 3; k++) {
       const d0 = new Date(todayMid); d0.setDate(d0.getDate() - k);
       const d1 = new Date(d0); d1.setDate(d1.getDate() + 1);
-      if (d1 <= m.start || d1 > m.now) break;
+      if (d0 < m.start || d1 > m.now) break; // whole days in this period only
       out.recent.push({ day: d0, mg: m.counted.filter(x => x.date >= d0 && x.date < d1).reduce((s, x) => s + x.mg, 0) });
     }
     const D = days.length, target = U * g;
@@ -893,7 +928,7 @@
     const width = 0.5 * Math.pow((0.6 / Dn) / 0.5, shape);
     const centre = (0.5 + when * (Dn - 1)) / Dn;
     out.centreDay = days.length ? days[Math.round(when * (D - 1))].day : null;
-    const K = days.map((_, k) => Math.exp(-0.5 * (((k + 0.5) / Dn - centre) / width) ** 2));
+    const K = days.map((_, k) => Math.max(Number.MIN_VALUE, Math.exp(-0.5 * (((k + 0.5) / Dn - centre) / width) ** 2)));
     let a = L;
     // A day's cut can't take it below 0; deeper cuts spill to the days around it.
     const level = (a, A, k) => Math.min(capMg(days[k]), Math.max(0, a - Math.min(a, A * K[k]) - days[k].t0));
@@ -901,10 +936,11 @@
     // Smallest x in [lo, hi] where tooLow(x) is false.
     const solve = (tooLow, lo, hi) => { for (let i = 0; i < 80; i++) { const mid = (lo + hi) / 2; if (tooLow(mid)) lo = mid; else hi = mid; } return hi; };
     let A = 0;
-    const BIG = 1e7;
+    // The dip's depth spans many orders of magnitude (a narrow dip's tails are
+    // tiny), so solve for it on a log scale.
     if (sumAt(a, 0) < target) a = solve(x => sumAt(x, 0) < target, a, maxDay + t0sum + 1);
-    else if (sumAt(a, BIG) > target) a = solve(x => sumAt(x, 0) < target, 0, a);
-    else A = solve(y => sumAt(a, y) > target, 0, BIG);
+    else if (sumAt(a, Infinity) > target) a = solve(x => sumAt(x, 0) < target, 0, a);
+    else A = Math.exp(solve(y => sumAt(a, Math.exp(y)) > target, -50, 1500));
     days.forEach((d, k) => {
       d.cap = Math.floor(capMg(d) / g + 1e-9);
       d.want = level(a, A, k) / g;
@@ -921,7 +957,7 @@
     out.unplannedMg = Math.max(0, rem) * g;
     // Rounding can zig-zag (75, 60, 75); reorder whole days so they only
     // fall up to the lowest day of the dip and only rise after it.
-    const whole = days.filter(d => !d.part);
+    const whole = days.filter(d => !d.part && !d.t0);
     if (whole.length) {
       let low = 0;
       whole.forEach((d, k) => { if (d.want < whole[low].want - 1e-9) low = k; });
@@ -930,6 +966,7 @@
       [...down, ...up].forEach((u, k) => { whole[k].units = u; });
     }
 
+    let prev = lastDose;
     for (const d of days) {
       d.mg = d.units * g;
       // As many doses as there are slots for, so 15s where possible; any
@@ -951,9 +988,14 @@
         const gap = span / d.count;
         for (let k = 0; k < d.count; k++) ms.push(d.a + gap * (k + 0.5));
       }
-      // Round to 5 minutes on the absolute clock, so the repeated hour on the
-      // daylight-saving night can't snap a time to the wrong 1:30 AM.
-      d.times = ms.map(x => new Date(Math.round(x / (5 * MIN)) * 5 * MIN));
+      // Whole minutes on the absolute clock (so the repeated hour on the
+      // daylight-saving night can't snap a time to the wrong 1:30 AM), rounded
+      // up and never closer than the pace to the dose before, even across days.
+      d.times = ms.map(x => {
+        const t = Math.ceil(Math.max(x, prev == null ? x : prev + d.pace * MIN) / MIN - 1e-9) * MIN;
+        prev = t;
+        return new Date(t);
+      });
       d.doses = d.times.map((t, k) => ({ t, mg: is30[k] ? 30 : 15 }));
       const r = d.times.map(t => t.getTime());
       d.gaps = r.slice(1).map((t, k) => (t - r[k]) / MIN);
@@ -1101,15 +1143,17 @@
     for (const d = new Date(day0); d < stop; d.setDate(d.getDate() + 1)) {
       const key = d.toDateString();
       const mg = m.counted.filter(x => x.date.toDateString() === key).reduce((a, x) => a + x.mg, 0);
-      const allow = m.s.mgPerDay;
-      const diff = mg - allow;
+      // A day cut short by the start or end only gets its share of the allowance.
+      const next = new Date(d); next.setDate(next.getDate() + 1);
+      const allow = m.s.mgPerDay * wallDays(d > m.start ? d : m.start, next < m.end ? next : m.end);
+      const diff = Math.round(mg - allow);
       sumMg += mg; sumAllow += allow;
       const vs = diff === 0 ? '<span style="color:var(--muted)">on target</span>'
         : diff > 0 ? `<span style="color:var(--bad)">+${fmt(diff)} over</span>` : `<span style="color:var(--good)">${fmt(-diff)} under</span>`;
       rows.push(`<div class="past"><b>${d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' })}</b><span class="mg">${fmt(mg)} mg</span><span class="vs">${vs}</span></div>`);
     }
     document.getElementById('p-past').innerHTML = rows.reverse().join('') || '<p class="empty">No finished days yet.</p>';
-    const pastDiff = sumMg - sumAllow;
+    const pastDiff = Math.round(sumMg - sumAllow);
     document.getElementById('p-past-sum').innerHTML = !rows.length ? '' : `${fmt(sumMg)} mg · ` + (pastDiff > 0 ? `<span style="color:var(--bad)">${fmt(pastDiff)} over</span>`
       : pastDiff < 0 ? `<span style="color:var(--good)">${fmt(-pastDiff)} under</span>` : 'on target');
 
@@ -1121,11 +1165,12 @@
     const sel = document.getElementById('p-surplus');
     const maxMg = Math.floor(Math.max(0, m.total - m.taken) / 15 + 1e-9) * 15;
     const want = Math.min(Number(p.surplus) || 0, maxMg);
-    if (sel.options.length !== maxMg / 15 + 1) {
+    const rebuilt = sel.options.length !== maxMg / 15 + 1;
+    if (rebuilt) {
       sel.innerHTML = Array.from({ length: maxMg / 15 + 1 }, (_, k) =>
         `<option value="${k * 15}">${k ? `+${k * 15} mg` : 'None'}</option>`).join('');
     }
-    if (document.activeElement !== sel) sel.value = String(want);
+    if (rebuilt || document.activeElement !== sel) sel.value = String(want);
     document.getElementById('p-hours').hidden = p.mode !== 'awake';
   }
 
@@ -1160,6 +1205,12 @@
   const followClock = () => { if (!timeEdited) timeInput.value = toLocalInput(new Date()); };
   setNow();
   timeInput.addEventListener('input', () => { timeEdited = true; });
+  timeInput.addEventListener('change', () => { timeEdited = true; });
+  let hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) hiddenAt = Date.now();
+    else if (hiddenAt && Date.now() - hiddenAt > 30 * 60000) setNow();
+  });
   document.getElementById('b-now').addEventListener('click', setNow);
 
   const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -1198,20 +1249,21 @@
     e.preventDefault();
     followClock(); // an untouched field logs the moment you tap, not when the app was opened
     if (!timeInput.value) return;
-    const t = timeInput.value, when = parseLocal(t), at = `${fmtTime(when)} on ${fmtDate(when)}`;
+    const t = timeInput.value, exact = timeEdited ? {} : { at: Date.now() };
+    const when = exact.at ? new Date(exact.at) : parseLocal(t), at = `${fmtTime(when)} on ${fmtDate(when)}`;
     if (kind === 'dose') {
-      state.doses.push({ id: newId(), t, mg: doseMg });
+      state.doses.push({ id: newId(), t, mg: doseMg, ...exact });
       logged(`Logged ${doseMg} mg at ${at}`);
     } else if (kind === 'agitation') {
       if (!agLevel) return;
-      state.agitation.push({ id: newId(), t, level: agLevel });
+      state.agitation.push({ id: newId(), t, level: agLevel, ...exact });
       logged(`Logged agitation ${agLevel}/5 at ${at}`);
       agLevel = 0; pick('#ag-seg', null);
     } else if (kind === 'sleep') {
-      state.sleep.push({ id: newId(), t, hours: sleepH });
+      state.sleep.push({ id: newId(), t, hours: sleepH, ...exact });
       logged(`Logged ${fmt(sleepH, 1)} h sleep on ${fmtDate(when)}`);
     } else {
-      state.naps.push({ id: newId(), t });
+      state.naps.push({ id: newId(), t, ...exact });
       logged(`Logged a nap at ${at}`);
     }
     save(); render(); setNow(); updateLogButton();
@@ -1233,16 +1285,24 @@
   document.getElementById('b-save').addEventListener('click', () => {
     const v = id => document.getElementById(id).value;
     const next = { start: v('s-start'), mgPerDay: Number(v('s-rate')), end: v('s-end') };
-    if (!(next.mgPerDay > 0) || !next.start || !next.end || parseLocal(next.end) <= parseLocal(next.start)) {
+    if (!(next.mgPerDay > 0) || next.mgPerDay > 1000 || !next.start || !next.end || parseLocal(next.end) <= parseLocal(next.start)) {
       alert('Fill in every field, with the appointment after "Counting from".');
       return;
     }
     // A new "Counting from" date is a refill: keep the old period for the CSV.
-    if (next.start !== state.settings.start) state.history = [...(state.history || []), state.settings];
+    if (next.start !== state.settings.start) {
+      // Moving "Counting from" later is a refill; moving it back undoes any
+      // refills from after the new date.
+      const kept = (state.history || []).filter(p => p.start < next.start);
+      state.history = state.settings.start < next.start ? [...kept, state.settings] : kept;
+    }
     state.settings = next;
     save(); render(); renderSettings();
     document.getElementById('settings').open = false;
   });
+
+  // Reopening Settings shows what's saved, not edits you closed without saving.
+  document.querySelector('#settings summary').addEventListener('click', () => { if (!document.getElementById('settings').open) renderSettings(); });
 
   async function download(text, type, name) {
     try {
@@ -1289,10 +1349,16 @@
     if (!file) return;
     try {
       const s = JSON.parse(await file.text());
-      if (!s.settings || !Array.isArray(s.doses)) throw new Error('bad file');
-      state = withLists(migrate(s)); save(); render(); renderSettings();
+      if (!s || !s.settings || !Array.isArray(s.doses)) throw new Error('bad file');
+      const next = withLists(migrate(s));
+      if (!valid(next)) throw new Error('bad file');
+      // Only keep it if it draws; otherwise put everything back as it was.
+      const prev = state;
+      state = next;
+      try { render(); } catch (err) { state = prev; render(); throw err; }
+      save(); renderSettings();
     } catch (err) {
-      alert("That file doesn't look like a Pill Tracker backup.");
+      alert("That file doesn't look like a Pill Tracker backup. Nothing was changed.");
     }
     e.target.value = '';
   });
@@ -1345,10 +1411,9 @@
     // More than half an hour early: check first, since the plan spaces doses out.
     if (planNext && planNext.t - now > 30 * 60000 &&
       !confirm(`This dose is planned for ${fmtTime(planNext.t)}${planNext.t.toDateString() === now.toDateString() ? '' : ' on ' + fmtDate(planNext.t)}. Log ${mg} mg now anyway?`)) return;
-    const t = toLocalInput(now);
-    state.doses.push({ id: newId(), t, mg });
+    state.doses.push({ id: newId(), t: toLocalInput(now), at: now.getTime(), mg });
     save(); render();
-    document.getElementById('p-next-sub').textContent = `Logged ${mg} mg at ${fmtTime(parseLocal(t))}. Plan updated.`;
+    document.getElementById('p-next-sub').textContent = `Logged ${mg} mg at ${fmtTime(now)}. Plan updated.`;
   });
 
   let rt;
@@ -1366,7 +1431,14 @@
     try {
       const res = await fetch(location.pathname + '?check=' + Date.now(), { cache: 'no-store' });
       const live = (await res.text()).match(/const BUILD = '([^']+)'/)?.[1];
-      if (live && live !== BUILD) location.replace(location.pathname + '?v=' + live);
+      // Reload once per new build; if the reload still serves the old page
+      // (a cache mid-deploy), don't keep reloading.
+      let tried = null;
+      try { tried = sessionStorage.getItem(KEY + '.reloadFor'); } catch (e) {}
+      if (live && live !== BUILD && tried !== live && new URLSearchParams(location.search).get('v') !== live) {
+        try { sessionStorage.setItem(KEY + '.reloadFor', live); } catch (e) {}
+        location.replace(location.pathname + '?v=' + live);
+      }
     } catch (e) {}
   }
   checkForUpdate();
