@@ -19,7 +19,7 @@ Doses logged with a future time don't count until that time arrives.
 
 The look is dark and neon whatever the phone's light/dark setting.
 
-Logging is one card: pick Dose or Sleep at the top, choose the value (15/30 mg, or last night's hours from your Apple Watch with − / +), set the date & time (or tap Now), then tap the Log button. Agitation and nap logging are gone; anything logged before is kept in backups but no longer shown.
+Logging is one card: pick Dose or Sleep at the top, choose the value (15/30 mg, or last night's hours from your Apple Watch with − / +), set the date & time (or tap Now), then tap the Log button. Agitation and nap logging are gone; anything logged before is kept in backups but no longer shown. If you're not sure when you took a dose, tick "Not sure when? Group it with another dose that day", set the date, and log it: it's saved a minute after the dose logged that day closest to the time in the field (that's most likely when an extra was taken) and shows "grouped (time not known)" in History and the CSV.
 
 History is one list of every dose and sleep entry with its date and time, newest first; each dose also shows that day's running total. The yellow line under the chart shows the time since the last logged dose.
 
@@ -27,7 +27,7 @@ The page ends with a line like "Build 6 · Home Screen app · 12 doses saved on 
 
 Settings: counting-from date, allotted mg/day, appointment. "Export CSV" under History downloads every dose and sleep entry with its date and time, plus each refill and target end date. Changing "Counting from" counts as a refill and keeps the previous period in that history.
 
-**Even out logged times** (in Settings) re-times every dose on finished days (Counting from through yesterday) with the same pills: each day gets the allowance, the amount over or under goes on back-to-back days from the first: an extra 15 mg a day before your first logged 30 mg dose, then an extra 30 mg a day (135 mg over → +15, +15, +15, +30, +30, +30), 30 mg pills only go on days from your first logged 30 on, and each day's doses are evenly spaced around the clock. Totals, the balance and the number of 30s don't change; today and sleep entries aren't touched. It asks first, downloads a backup of the real log, marks every re-timed dose "adjusted" (in History and the CSV), and **Undo even-out** puts the real times back, even after evening out more than once.
+**Even out logged times** (in Settings) re-times every dose on finished days (Counting from through yesterday) with the same pills: each day gets the allowance, the amount over or under goes on back-to-back days from the first: an extra 15 mg a day before your first logged 30 mg dose, then an extra 30 mg a day (135 mg over → +15, +15, +15, +30, +30, +30), 30 mg pills only go on days from your first logged 30 on, and each day's regular doses are evenly spaced around the clock, with any extra pill taken a minute after the middle one rather than on its own. Totals, the balance and the number of 30s don't change; today and sleep entries aren't touched. It asks first, downloads a backup of the real log, marks every re-timed dose "adjusted" (in History and the CSV), and **Undo even-out** puts the real times back, even after evening out more than once.
 
 ## Taper plan tab
 
