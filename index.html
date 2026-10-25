@@ -219,6 +219,8 @@
   .time-row > div { min-width: 0; }
   #b-now { min-height: 48px; border-radius: 14px; }
   #b-log { width: 100%; margin-top: 12px; min-height: 54px; font-size: 17px; }
+  .group-row { display: flex; align-items: center; gap: 10px; margin: 12px 2px 0; font-size: 14px; color: var(--text); min-height: 44px; cursor: pointer; }
+  .group-row input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; }
   .logged { min-height: 18px; margin-top: 10px; font-size: 13px; color: var(--good); text-align: center; }
 
   .item { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
@@ -368,6 +370,7 @@
           <button type="button" data-mg="15" aria-pressed="true">15 mg</button>
           <button type="button" data-mg="30" aria-pressed="false">30 mg</button>
         </div>
+        <label class="group-row"><input type="checkbox" id="f-group"> Not sure when? Group it with another dose that day</label>
       </div>
       <div class="panel" data-panel="sleep" hidden>
         <div class="stepper">
@@ -420,7 +423,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-36';
+  const BUILD = '2026-10-25-37';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -1223,7 +1226,7 @@
   function renderHistory(m) {
     const el = document.getElementById('history');
     const items = [
-      ...[...m.doses].reverse().map(d => ({ date: d.date, kind: 'dose', id: d.id, color: 'yellow', title: `${fmt(d.mg)} mg`, extra: `${fmt(d.dayTotal)} mg ${d.date.toDateString() === m.now.toDateString() ? 'today' : 'that day'}${d.adjusted ? ' · adjusted' : ''}` })),
+      ...[...m.doses].reverse().map(d => ({ date: d.date, kind: 'dose', id: d.id, color: 'yellow', title: `${fmt(d.mg)} mg`, extra: `${fmt(d.dayTotal)} mg ${d.date.toDateString() === m.now.toDateString() ? 'today' : 'that day'}${d.adjusted ? ' · adjusted' : ''}${d.grouped ? ' · grouped (time not known)' : ''}` })),
       ...m.sleep.map(x => ({ date: x.date, kind: 'sleep', id: x.id, color: 'green', title: `Sleep ${fmt(x.hours, 1)} h` })),
     ].sort((a, b) => b.date - a.date);
     if (!items.length) { el.innerHTML = '<p class="empty">Nothing logged yet.</p>'; return; }
@@ -1289,7 +1292,19 @@
     if (!timeInput.value) return;
     const t = timeInput.value, exact = timeEdited ? {} : { at: Date.now() };
     const when = exact.at ? new Date(exact.at) : parseLocal(t), at = `${fmtTime(when)} on ${fmtDate(when)}`;
-    if (kind === 'dose') {
+    const grouping = kind === 'dose' && document.getElementById('f-group').checked;
+    if (grouping) {
+      // Not sure of the time: put it a minute after the dose logged that day
+      // closest to the time in the field, as that's most likely when it was.
+      const key = when.toDateString();
+      const sameDay = state.doses.map(d => ({ d, at: (d.at ? new Date(d.at) : parseLocal(d.t)) })).filter(x => x.at.toDateString() === key);
+      if (!sameDay.length) { logged(`No dose logged on ${fmtDate(when)} to group it with. Pick the time instead, or log it without grouping.`); return; }
+      const near = sameDay.reduce((a, x) => Math.abs(x.at - when) < Math.abs(a.at - when) ? x : a);
+      const g = new Date(near.at.getTime() + 60000);
+      state.doses.push({ id: newId(), t: toLocalInput(g), at: g.getTime(), mg: doseMg, grouped: true });
+      logged(`Logged ${doseMg} mg on ${fmtDate(g)}, with the ${fmtTime(near.at)} dose`);
+      document.getElementById('f-group').checked = false;
+    } else if (kind === 'dose') {
       state.doses.push({ id: newId(), t, mg: doseMg, ...exact });
       logged(`Logged ${doseMg} mg at ${at}`);
     } else {
@@ -1356,7 +1371,7 @@
     for (const d = new Date(day0); d < stop; d.setDate(d.getDate() + 1)) {
       const next = new Date(d); next.setDate(next.getDate() + 1);
       const a = d > m.start ? new Date(d) : new Date(m.start), b = next < m.end ? next : new Date(m.end);
-      days.push({ day: new Date(d), a, b, mg: Math.round(m.s.mgPerDay * wallDays(a, b) / 15) * 15, k30: 0 });
+      days.push({ day: new Date(d), a, b, mg: Math.round(m.s.mgPerDay * wallDays(a, b) / 15) * 15, k30: 0, extra: 0 });
     }
     // Over (or under) the allowances.
     const extra = total - days.reduce((s, d) => s + d.mg, 0), sign = Math.sign(extra);
@@ -1372,28 +1387,42 @@
         const step = Math.min(todo, first30 && d.day >= first30 ? 30 : 15);
         if (sign < 0 && d.mg < step) return;
         d.mg += sign * step; todo -= step; hit.add(i); moved = true;
+        if (sign > 0) d.extra += step;
       });
       if (!moved) break;
     }
-    // 30s: round-robin over days from the first logged 30 on, as many as fit.
+    // Pills. A day's extra is taken on top of one of its regular doses (that's
+    // most likely how it happened), as a 30 from your first logged 30 on,
+    // otherwise as 15s. Remaining 30s go round-robin into the regular doses of
+    // days from the first 30 on; everything else is 15s.
     let left = n30;
+    for (const d of days) {
+      d.extraPills = [];
+      for (let r = d.extra; r > 0; ) {
+        const big = r >= 30 && left > 0 && first30 && d.day >= first30;
+        d.extraPills.push(big ? 30 : 15); r -= big ? 30 : 15; if (big) left--;
+      }
+      d.base = d.mg - d.extra;
+    }
     const ok30 = days.filter(d => first30 && d.day >= first30);
     while (left > 0) {
       let placed = false;
-      for (const d of ok30) if (left > 0 && (d.k30 + 1) * 30 <= d.mg) { d.k30++; left--; placed = true; }
+      for (const d of ok30) if (left > 0 && (d.k30 + 1) * 30 <= d.base) { d.k30++; left--; placed = true; }
       if (!placed) return { error: `The ${n30} × 30 mg doses don't fit on the days since your first 30 mg dose.` };
     }
     const entries = [];
+    const add = (t, mg) => entries.push({ id: newId() + entries.length, t: toLocalInput(t), at: t.getTime(), mg, adjusted: true });
     for (const d of days) {
-      const n = d.k30 + (d.mg - 30 * d.k30) / 15;
-      if (!n) continue;
+      const n = d.k30 + (d.base - 30 * d.k30) / 15;
       const is30 = new Array(n).fill(false);
       for (let j = 0; j < d.k30; j++) is30[Math.round((j + 0.5) * n / d.k30 - 0.5)] = true;
-      const gap = (d.b - d.a) / n;
-      for (let k = 0; k < n; k++) {
-        const t = new Date(Math.round((d.a.getTime() + gap * (k + 0.5)) / MIN) * MIN);
-        entries.push({ id: newId() + entries.length, t: toLocalInput(t), at: t.getTime(), mg: is30[k] ? 30 : 15, adjusted: true });
-      }
+      const gap = (d.b - d.a) / Math.max(1, n);
+      const times = [];
+      for (let k = 0; k < n; k++) times.push(new Date(Math.round((d.a.getTime() + gap * (k + 0.5)) / MIN) * MIN));
+      times.forEach((t, k) => add(t, is30[k] ? 30 : 15));
+      // Extras: a minute after the middle regular dose (or mid-day if none).
+      const anchor = n ? times[Math.floor((n - 1) / 2)] : new Date(Math.round((d.a.getTime() + (d.b - d.a) / 2) / MIN) * MIN);
+      d.extraPills.forEach((mg, j) => add(new Date(anchor.getTime() + (j + 1) * MIN), mg));
     }
     return { old, entries, total, n30, n15, extra, chunkDays: hit.size, from: days[0].day, to: days[days.length - 1].day };
   }
@@ -1406,7 +1435,7 @@
       [ev.n30 ? `${ev.n30} × 30` : '', ev.n15 ? `${ev.n15} × 15` : ''].filter(Boolean).join(' + ') + ' mg.\n\n' +
       `Every day gets the ${fmt(state.settings.mgPerDay)} mg allowance` +
       (over ? `, and the ${fmt(over)} mg ${word} (${pillsText(over)} mg) goes on ${ev.chunkDays} day${ev.chunkDays === 1 ? '' : 's'} in a row from the start (15s first, then 30s from your first 30 mg dose)` : '') +
-      `. Each day's doses are evenly spaced. Totals don't change; today isn't touched.\n\nA backup of your current log downloads first, and "Undo even-out" puts the real times back.`;
+      `. Each day's regular doses are evenly spaced, and any extra is taken together with one of them. Totals don't change; today isn't touched.\n\nA backup of your current log downloads first, and "Undo even-out" puts the real times back.`;
     if (!confirm(msg)) return;
     const taken = state.doses.filter(d => ev.old.some(o => o.id === d.id));
     // Evening out again keeps the real times from the first time for Undo
@@ -1462,7 +1491,7 @@
       rows.push([p.start, 'Refill / start', '', '', `${fmt(p.mgPerDay)} mg/day allotment; target end ${p.end.replace('T', ' ')}`]);
       rows.push([p.end, 'Target end', '', '', '']);
     }
-    for (const d of state.doses) rows.push([d.t, 'Dose', fmt(d.mg), '', d.adjusted ? 'adjusted (evenly spaced)' : '']);
+    for (const d of state.doses) rows.push([d.t, 'Dose', fmt(d.mg), '', [d.adjusted ? 'adjusted (evenly spaced)' : '', d.grouped ? 'time not known; logged with another dose' : ''].filter(Boolean).join('; ')]);
     for (const x of state.sleep) rows.push([x.t, 'Sleep', '', fmt(x.hours, 1), 'hours']);
     rows.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
     const csv = ['Date,Time,Event,mg,Value,Notes', ...rows.map(([t, ev, mg, val, note]) =>
