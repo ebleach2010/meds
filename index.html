@@ -371,7 +371,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-22';
+  const BUILD = '2026-10-25-23';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -853,8 +853,12 @@
       out.recent.push({ day: d0, mg: m.counted.filter(x => x.date >= d0 && x.date < d1).reduce((s, x) => s + x.mg, 0) });
     }
     const D = days.length, target = U * g;
-    const capMg = d => d.slots * big;
-    const maxDay = slots * big;
+    // No day is planned above 90 mg (or the allowance, if that's higher),
+    // however aggressive the shape; today's doses so far count towards it.
+    const ceil = Math.max(90, m.s.mgPerDay);
+    out.ceil = ceil;
+    const capMg = d => Math.max(0, Math.min(d.slots * big, ceil - d.t0));
+    const maxDay = Math.min(slots * big, ceil);
     const t0sum = days.reduce((s, d) => s + d.t0, 0);
     const mean = D ? (target + t0sum) / D : 0;
     const recentAvg = out.recent.length ? out.recent.reduce((s, r) => s + r.mg, 0) / out.recent.length : m.s.mgPerDay;
@@ -958,7 +962,7 @@
       `With the ${fmt(m.taken)} mg already taken that's <b>${fmt(m.taken + plan.mg)} of ${fmt(m.total)} mg</b>.`;
     if (plan.reserve) sum += ` That leaves <b>${fmt(plan.reserve)} mg extra</b> at the end, as chosen.`;
     if (plan.remainderMg) sum += ` The last ${plan.remainderMg} mg doesn't make a whole ${plan.grain} mg dose, so it's left out.`;
-    if (plan.unplannedMg) sum += ` <b>${plan.unplannedMg} mg can't fit</b> without doses closer than every ${hm(plan.paceMin)} (at most ${plan.slots} a day, one pill each), so you'd finish ${plan.unplannedMg} mg under target.`;
+    if (plan.unplannedMg) sum += ` <b>${plan.unplannedMg} mg can't fit</b> without going over ${fmt(plan.ceil)} mg in a day or doses closer than every ${hm(plan.paceMin)} (at most ${plan.slots} a day, one pill each), so you'd finish ${plan.unplannedMg} mg under target.`;
     document.getElementById('p-sum').innerHTML = sum;
 
     // Shape: the slider, a bar per day, and what the shape means in numbers.
