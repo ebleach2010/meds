@@ -213,6 +213,10 @@
   .item-main { flex: 1; min-width: 0; }
   .item-t { font-weight: 600; font-variant-numeric: tabular-nums; }
   .item-s { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .item.disp-day { display: block; }
+  .item.disp-day summary { display: flex; align-items: center; gap: 14px; padding: 0; }
+  .item.disp-day summary::after { display: none; }
+  .disp-dose { display: flex; align-items: center; justify-content: space-between; padding-left: 23px; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .item .del { min-height: 44px; min-width: 44px; padding: 0; background: none; color: var(--muted); font-size: 15px; font-weight: 400; border-radius: 999px; }
   .empty { color: var(--muted); font-size: 14px; margin: 4px 0; }
 
@@ -438,7 +442,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-42';
+  const BUILD = '2026-10-25-43';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -485,6 +489,12 @@
         .sort((a, b) => a.from < b.from ? -1 : a.from > b.from ? 1 : 0),
       skips: Array.isArray(dp.skips) ? dp.skips.filter(x => typeof x === 'string') : [],
     };
+    // From this build on the dispenser runs 8-12-8 (30, 15, 30 mg): switch it
+    // on once, starting the moment it's first opened, unless already set up.
+    if (!s.dispenserAuto) {
+      s.dispenserAuto = true;
+      if (!s.dispenser.periods.length) s.dispenser.periods.push({ from: toLocalInput(new Date()), slots: [{ time: '08:00', mg: 30 }, { time: '12:00', mg: 15 }, { time: '20:00', mg: 30 }] });
+    }
     return s;
   }
 
@@ -1367,15 +1377,30 @@
 
   function renderHistory(m) {
     const el = document.getElementById('history');
+    // Dispenser releases: one line per day ("Dispenser 8-12-8"), opening to
+    // each dose so a missed one can be marked.
+    const byDay = new Map();
+    for (const d of m.doses) if (d.auto) {
+      const k = d.date.toDateString();
+      if (!byDay.has(k)) byDay.set(k, []);
+      byDay.get(k).push(d);
+    }
+    const hr = d => { const h = d.date.getHours() % 12 || 12, mi = d.date.getMinutes(); return mi ? `${h}:${String(mi).padStart(2, '0')}` : String(h); };
     const items = [
-      ...[...m.doses].reverse().map(d => ({ date: d.date, kind: 'dose', id: d.id, color: 'yellow', title: `${fmt(d.mg)} mg`, extra: `${fmt(d.dayTotal)} mg ${d.date.toDateString() === m.now.toDateString() ? 'today' : 'that day'}${d.auto ? ' · dispenser' : ''}` })),
+      ...[...m.doses].reverse().filter(d => !d.auto).map(d => ({ date: d.date, kind: 'dose', id: d.id, color: 'yellow', title: `${fmt(d.mg)} mg`, extra: `${fmt(d.dayTotal)} mg ${d.date.toDateString() === m.now.toDateString() ? 'today' : 'that day'}` })),
+      ...[...byDay.values()].map(ds => ({ date: ds[ds.length - 1].date, kind: 'disp', ds })),
       ...m.agitation.map(a => ({ date: a.date, kind: 'agitation', id: a.id, color: 'purple', title: `Agitation ${a.level}/5` })),
       ...m.sleep.map(x => ({ date: x.date, kind: 'sleep', id: x.id, color: 'green', title: `Sleep ${fmt(x.hours, 1)} h` })),
       ...m.naps.map(x => ({ date: x.date, kind: 'nap', id: x.id, color: 'nap', title: 'Nap' })),
     ].sort((a, b) => b.date - a.date);
     if (!items.length) { el.innerHTML = '<p class="empty">Nothing logged yet.</p>'; return; }
-    el.innerHTML = items.map(it =>
-      `<div class="item" data-kind="${it.kind}"><span class="dot" style="background:var(--${it.color});color:var(--${it.color})"></span>` +
+    el.innerHTML = items.map(it => it.kind === 'disp'
+      ? `<details class="item disp-day" data-kind="dose"><summary><span class="dot" style="background:var(--yellow);color:var(--yellow)"></span>` +
+        `<div class="item-main"><div class="item-t">Dispenser ${it.ds.map(hr).join('–')}</div>` +
+        `<div class="item-s">${fmtDate(it.date)} · ${it.ds.map(d => fmt(d.mg)).join(' + ')} = ${fmt(it.ds.reduce((a, d) => a + d.mg, 0))} mg</div></div></summary>` +
+        it.ds.map(d => `<div class="disp-dose"><span>${fmtTime(d.date)} · ${fmt(d.mg)} mg</span><button type="button" class="del" data-kind="dose" data-del="${d.id}" aria-label="Mark missed">✕</button></div>`).join('') +
+        `</details>`
+      : `<div class="item" data-kind="${it.kind}"><span class="dot" style="background:var(--${it.color});color:var(--${it.color})"></span>` +
       `<div class="item-main"><div class="item-t">${it.title}</div>` +
       `<div class="item-s">${fmtDate(it.date)} · ${fmtTime(it.date)}${it.extra ? ' · ' + it.extra : ''}</div></div>` +
       `<button type="button" class="del" data-kind="${it.kind}" data-del="${it.id}" aria-label="Delete">✕</button></div>`).join('');
