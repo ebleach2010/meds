@@ -426,7 +426,7 @@
 
 <script>
 (function () {
-  const BUILD = '2026-10-25-38';
+  const BUILD = '2026-10-25-39';
   const KEY = 'pilltracker.v1';
   const DAY = 86400000;
   // Bumping VERSION replaces saved data with DEFAULTS on next open.
@@ -1438,17 +1438,30 @@
     }
     const entries = [];
     const add = (t, mg) => entries.push({ id: newId() + entries.length, t: toLocalInput(t), at: t.getTime(), mg, adjusted: true });
+    // Times: your doses were taken at 8 AM, 12 PM and 8 PM, each 1-45 minutes
+    // early or late. A day's pills (extras included) are shared out across
+    // those times, heaviest first to the time with the least so far; pills
+    // taken together are a minute apart. The offsets are fixed per date, so
+    // evening out again gives the same times.
+    const SLOTS = [8 * 60, 12 * 60, 20 * 60];
+    const jitter = (dayNo, k) => {
+      let x = (Math.imul(dayNo, 2654435761) ^ Math.imul(k + 1, 40503)) >>> 0;
+      x = Math.imul(x ^ x >>> 15, 1 | x); x ^= x + Math.imul(x ^ x >>> 7, 61 | x); x = (x ^ x >>> 14) >>> 0;
+      return (1 + x % 45) * (x & 0x10000 ? 1 : -1);
+    };
     for (const d of days) {
-      const n = d.k30 + (d.base - 30 * d.k30) / 15;
-      const is30 = new Array(n).fill(false);
-      for (let j = 0; j < d.k30; j++) is30[Math.round((j + 0.5) * n / d.k30 - 0.5)] = true;
-      const gap = (d.b - d.a) / Math.max(1, n);
-      const times = [];
-      for (let k = 0; k < n; k++) times.push(new Date(Math.round((d.a.getTime() + gap * (k + 0.5)) / MIN) * MIN));
-      times.forEach((t, k) => add(t, is30[k] ? 30 : 15));
-      // Extras: a minute after the middle regular dose (or mid-day if none).
-      const anchor = n ? times[Math.floor((n - 1) / 2)] : new Date(Math.round((d.a.getTime() + (d.b - d.a) / 2) / MIN) * MIN);
-      d.extraPills.forEach((mg, j) => add(new Date(anchor.getTime() + (j + 1) * MIN), mg));
+      const pills = [...Array(d.k30).fill(30), ...Array((d.base - 30 * d.k30) / 15).fill(15), ...d.extraPills].sort((x, y) => y - x);
+      if (!pills.length) continue;
+      const dayNo = Math.round(Date.UTC(d.day.getFullYear(), d.day.getMonth(), d.day.getDate()) / DAY);
+      let slots = SLOTS.map((mins, k) => { const t = new Date(d.day); t.setHours(0, mins + jitter(dayNo, k), 0, 0); return t; })
+        .filter(t => t >= d.a && t < d.b);
+      if (!slots.length) slots = [new Date(Math.round((d.a.getTime() + (d.b - d.a) / 2) / MIN) * MIN)];
+      const buckets = slots.map(t => ({ t, mg: 0, pills: [] }));
+      for (const mg of pills) {
+        const b = buckets.reduce((lo, x) => x.mg < lo.mg ? x : lo);
+        b.mg += mg; b.pills.push(mg);
+      }
+      for (const b of buckets) b.pills.forEach((mg, j) => add(new Date(b.t.getTime() + j * MIN), mg));
     }
     const x30 = days.reduce((a, d) => a + d.extraPills.filter(p => p === 30).length, 0);
     const x15 = days.reduce((a, d) => a + d.extraPills.filter(p => p === 15).length, 0);
@@ -1463,7 +1476,7 @@
       [ev.n15 ? `${ev.n15} × 15 mg (15 mg bottle)` : '', ev.n30 ? `${ev.n30} × 30 mg (30 mg bottle)` : ''].filter(Boolean).join(' + ') + '. The same pills from each bottle afterwards.\n\n' +
       `Every day gets the ${fmt(state.settings.mgPerDay)} mg allowance` +
       (over ? `, and the ${fmt(over)} mg ${word} (${ev.extra > 0 ? [ev.x15 ? `${ev.x15} × 15` : '', ev.x30 ? `${ev.x30} × 30` : ''].filter(Boolean).join(' + ') : pillsText(over)} mg) goes on ${ev.chunkDays} day${ev.chunkDays === 1 ? '' : 's'} in a row from the start (15s first, then 30s from your first 30 mg dose)` : '') +
-      `. Each day's regular doses are evenly spaced, and any extra is taken together with one of them. Totals don't change; today isn't touched.\n\nA backup of your current log downloads first, and "Undo even-out" puts the real times back.`;
+      `. Each day's pills, extras included, go at your dose times, 8 AM, 12 PM and 8 PM, each 1–45 minutes early or late. Totals and pills from each bottle don't change; today isn't touched.\n\nA backup of your current log downloads first, and "Undo even-out" puts the real times back.`;
     if (!confirm(msg)) return;
     const taken = state.doses.filter(d => ev.old.some(o => o.id === d.id));
     // Evening out again keeps the real times from the first time for Undo
